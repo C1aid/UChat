@@ -1,8 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "i7Z7Kgv2/tQ=",
+  "dgSpecHash": "4aHdk0cWUqY=",
   "success": true,
-  "projectFilePath": "F:\\code\\uchat\\src\\Uchat.Shared\\Uchat.Shared.csproj",
-  "expectedPackageFiles": [],
+  "projectFilePath": "F:\\CODE\\C#\\UChat\\src\\Uchat.Shared\\Uchat.Shared.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\zmatv\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.22\\microsoft.netcore.app.ref.8.0.22.nupkg.sha512",
+    "C:\\Users\\zmatv\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.22\\microsoft.windowsdesktop.app.ref.8.0.22.nupkg.sha512",
+    "C:\\Users\\zmatv\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.22\\microsoft.aspnetcore.app.ref.8.0.22.nupkg.sha512"
+  ],
   "logs": []
 }
