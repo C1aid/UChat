@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Uchat.Shared/Uchat.Shared.csproj" />
+    <Project Path="src/uchat/uchat.csproj" />
+    <Project Path="src/uchat_server/uchat_server.csproj" />
+  </Folder>
+</Solution>
