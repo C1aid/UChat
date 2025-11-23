@@ -1,0 +1,15 @@
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\bin\Debug\UChat.exe.config
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\bin\Debug\UChat.exe
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\bin\Debug\UChat.pdb
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat.csproj.AssemblyReference.cache
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\MainWindow.g.cs
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\App.g.cs
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat_MarkupCompile.cache
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat_MarkupCompile.lref
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\MainWindow.baml
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat.g.resources
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat.Properties.Resources.resources
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat.csproj.GenerateResource.cache
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat.csproj.CoreCompileInputs.cache
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat.exe
+C:\Users\yehor\OneDrive\Рабочий стол\UChat\UChat\UChat\obj\Debug\UChat.pdb
