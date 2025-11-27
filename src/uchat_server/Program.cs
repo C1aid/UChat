@@ -11,56 +11,54 @@ using uchat_server.Services;
 class Program
 {
     private static ILogger<Program> _logger = null!;
-    
-    // Используем обычный список, но будем его блокировать при изменении
     private static List<ClientHandler> _clients = new();
-    private static readonly object _lock = new(); // Объект для блокировки (замок)
+    private static readonly object _lock = new();
 
     static async Task Main(string[] args)
     {
-        // 1. Проверка порта (Строгая, как вы просили)
         if (args.Length != 1 || !int.TryParse(args[0], out int port))
         {
-            Console.WriteLine("Ошибка: Не указан порт!");
-            Console.WriteLine("Использование: uchat_server.exe <port>");
-            return; // Завершаем программу, если порта нет
+            Console.WriteLine("Usage: uchat_server <port>");
+            return;
         }
 
+        // 2. Вывод PID
+        Console.WriteLine($"Server PID: {System.Environment.ProcessId}");
+
+        // 3. ЗАПРОС ПАРОЛЯ ДЛЯ БД
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.Write("Enter PostgreSQL password: ");
+        Console.ResetColor();
+        
+        // Читаем пароль. Если нажали Enter без ввода -> пустая строка
+        string password = Console.ReadLine()?.Trim() ?? "";
+
+        // Настраиваем конфигурацию
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            .AddJsonFile("appsettings.json", optional: true)
             .Build();
 
         var services = new ServiceCollection();
-        ConfigureServices(services, configuration);
+        // Передаем введенный пароль в конфигуратор
+        ConfigureServices(services, configuration, password);
         var serviceProvider = services.BuildServiceProvider();
 
         _logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
-        // 2. АВТО-МИГРАЦИЯ (Чтобы не писать dotnet ef update)
+        // 4. Подключаем БД
         await InitializeDatabase(serviceProvider);
 
-        _logger.LogInformation("Server PID: {ProcessId}", Environment.ProcessId);
-        _logger.LogInformation("Starting server on port {Port}", port);
-
+        // 5. Запускаем "Демона"
+        _logger.LogInformation($"Daemon starting on port {port}...");
         await StartTcpServer(port, serviceProvider);
     }
 
-    static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    static void ConfigureServices(IServiceCollection services, IConfiguration configuration, string manualPassword)
     {
         services.AddLogging(builder => builder.AddConsole());
-
-        // --- ИЗМЕНЕНИЕ: Ввод пароля вручную ---
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.Write("Введите пароль для БД (пользователь postgres): ");
-        Console.ResetColor();
-
-        // Читаем пароль с консоли. Если нажали просто Enter -> будет пустая строка
-        string password = Console.ReadLine()?.Trim() ?? "";
-
-        // Формируем строку подключения, подставляя введенный пароль
-        var connectionString = $"Host=localhost;Port=5432;Database=uchat;Username=postgres;Password={password}";
-        // --------------------------------------
+        
+        var connectionString = $"Host=localhost;Port=5432;Database=uchat;Username=postgres;Password={manualPassword}";
 
         services.AddDbContext<ChatContext>(options =>
             options.UseNpgsql(connectionString));
@@ -75,13 +73,17 @@ class Program
         var context = scope.ServiceProvider.GetRequiredService<ChatContext>();
         try
         {
-            // Эта строка сама накатит миграции при запуске exe
             await context.Database.MigrateAsync();
-            Console.WriteLine("--> [System] База данных проверена и обновлена.");
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("--> [Success] Database connected and migrated.");
+            Console.ResetColor();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"--> [System] Ошибка подключения к БД: {ex.Message}");
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"--> [Error] DB Connection failed: {ex.Message}");
+            Console.WriteLine("--> Проверьте пароль и перезапустите сервер.");
+            Console.ResetColor();
         }
     }
 
