@@ -8,7 +8,7 @@ namespace uchat_server.Services
 {
     public class AuthService
     {
-        private readonly ChatContext _context;
+        private readonly ChatContext _context; // Контекст БД
         private readonly ILogger<AuthService> _logger;
 
         public AuthService(ChatContext context, ILogger<AuthService> logger)
