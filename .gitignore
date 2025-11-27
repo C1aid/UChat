@@ -16,3 +16,39 @@ obj/
 
 # MacOS мусор
 .DS_Store
+
+# ↓↓↓ ДОБАВЬ ЭТИ СТРОКИ ↓↓↓
+
+# NuGet пакеты и кэш
+.nuget/
+packages/
+*.nupkg
+*.snupkg
+
+# Файлы NuGet восстановления
+project.assets.json
+*.csproj.nuget.*
+*.nuget.props
+*.nuget.targets
+
+# Файлы сборки MSBuild
+*.csproj.user
+*.vbproj.user
+
+# Резервные копии и временные файлы
+*~
+*.backup
+*.tmp
+
+# Файлы запуска Visual Studio
+*.launchsettings.json
+
+# Файлы покрытия тестов
+coverage.json
+coverage.xml
+*.coverage
+*.coveragexml
+
+# Файлы производительности
+*.diagsession
+*.etl
