@@ -22,42 +22,64 @@ class Program
             return;
         }
 
-        // 2. Вывод PID
         Console.WriteLine($"Server PID: {System.Environment.ProcessId}");
 
-        // 3. ЗАПРОС ПАРОЛЯ ДЛЯ БД
+        //ЗАПРОС ПАРОЛЯ ДЛЯ БД
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Enter PostgreSQL password: ");
         Console.ResetColor();
         
-        // Читаем пароль. Если нажали Enter без ввода -> пустая строка
         string password = Console.ReadLine()?.Trim() ?? "";
 
-        // Настраиваем конфигурацию
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true)
             .Build();
 
         var services = new ServiceCollection();
-        // Передаем введенный пароль в конфигуратор
         ConfigureServices(services, configuration, password);
         var serviceProvider = services.BuildServiceProvider();
 
         _logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
-        // 4. Подключаем БД
         await InitializeDatabase(serviceProvider);
 
-        // 5. Запускаем "Демона"
         _logger.LogInformation($"Daemon starting on port {port}...");
+        await StartTcpServer(port, serviceProvider);
+
+        _logger.LogInformation($"Daemon starting on port {port}...");
+
+        ClientHandler.OnMessageBroadcast += async (json, senderId, roomId) =>
+        {
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var chatService = scope.ServiceProvider.GetRequiredService<ChatService>();
+                List<int> membersInChat = await chatService.GetRoomUserIdsAsync(roomId);
+                List<ClientHandler> onlineClients;
+                lock (_lock)
+                {
+                    onlineClients = _clients.ToList();
+                }
+                foreach (var client in onlineClients)
+                {                    
+                    if (client.UserId != 0 && membersInChat.Contains(client.UserId))
+                    {
+                        try 
+                        {
+                            await client.SendRawMessageAsync(json);
+                        }
+                        catch { }
+                    }
+                }
+            }
+        };
         await StartTcpServer(port, serviceProvider);
     }
 
     static void ConfigureServices(IServiceCollection services, IConfiguration configuration, string manualPassword)
     {
         services.AddLogging(builder => builder.AddConsole());
-        
+
         var connectionString = $"Host=localhost;Port=5432;Database=uchat;Username=postgres;Password={manualPassword}";
 
         services.AddDbContext<ChatContext>(options =>

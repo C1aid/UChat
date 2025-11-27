@@ -28,7 +28,6 @@ namespace uchat_server.Data
                 entity.HasIndex(u => u.Username).IsUnique();
             });
 
-            // 2. Настройка Сообщения
             modelBuilder.Entity<Message>(entity =>
             {
                 entity.HasOne(m => m.User)
@@ -42,22 +41,17 @@ namespace uchat_server.Data
                     .OnDelete(DeleteBehavior.Cascade); // Если удалить чат, удалится переписка
             });
 
-            // 3. Настройка Участников чата (Самое важное для групп!)
             modelBuilder.Entity<ChatRoomMember>(entity =>
             {
-                // Составной ключ: (ChatRoomId + UserId)
-                // Это гарантирует, что один человек не может вступить в одну группу дважды
                 entity.HasKey(crm => new { crm.ChatRoomId, crm.UserId });
 
-                // Связь: Участник -> Комната
                 entity.HasOne(crm => crm.ChatRoom)
                     .WithMany(r => r.Members)
                     .HasForeignKey(crm => crm.ChatRoomId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                // Связь: Участник -> Юзер
                 entity.HasOne(crm => crm.User)
-                    .WithMany(u => u.ChatRooms) // Убедитесь, что добавили список ChatRooms в User.cs!
+                    .WithMany(u => u.ChatRooms)
                     .HasForeignKey(crm => crm.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });

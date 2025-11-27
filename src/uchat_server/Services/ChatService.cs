@@ -43,7 +43,6 @@ namespace uchat_server.Services
         {
             return await _context.Messages
                 .Include(m => m.User)
-                .Where(m => !m.IsDeleted)
                 .OrderByDescending(m => m.SentAt)
                 .Take(count)
                 .Select(m => new MessageDto
@@ -55,6 +54,20 @@ namespace uchat_server.Services
                     MessageType = m.MessageType
                 })
                 .ToListAsync();
+        }
+        
+        public async Task<List<int>> GetRoomUserIdsAsync(int roomId)
+        {
+            return await _context.Set<ChatRoomMember>()
+                .Where(m => m.ChatRoomId == roomId)
+                .Select(m => m.UserId)
+                .ToListAsync();
+        }
+
+        public async Task<bool> IsUserInRoomAsync(int userId, int roomId)
+        {
+            return await _context.Set<ChatRoomMember>()
+                .AnyAsync(m => m.UserId == userId && m.ChatRoomId == roomId);
         }
     }
 }

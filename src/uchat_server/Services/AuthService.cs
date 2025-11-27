@@ -17,7 +17,7 @@ namespace uchat_server.Services
             _logger = logger;
         }
 
-        public async Task<ApiResponse> RegisterAsync(string username, string password)
+        public async Task<ApiResponse> RegisterAsync(string username, string password, string firstName, string? lastName = null)
         {
             try
             {
@@ -30,7 +30,9 @@ namespace uchat_server.Services
                 {
                     Username = username,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    FirstName = firstName,
+                    LastName = lastName
                 };
 
                 _context.Users.Add(user);
@@ -40,7 +42,11 @@ namespace uchat_server.Services
                 {
                     Success = true,
                     Message = "User registered successfully",
-                    Data = new { UserId = user.Id, Username = user.Username }
+                    Data = new 
+                    { 
+                        UserId = user.Id, 
+                        Username = user.Username                        
+                    }
                 };
             }
             catch (Exception ex)

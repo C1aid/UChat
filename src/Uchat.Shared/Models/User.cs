@@ -14,5 +14,7 @@ namespace Uchat.Shared.Models
 
         public List<Message> Messages { get; set; } = new();
         public List<ChatRoomMember> ChatRooms { get; set; } = new();
+
+        public byte[]? Avatar { get; set; } // Optional avatar image data
     }
 }
