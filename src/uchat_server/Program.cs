@@ -22,15 +22,17 @@ class Program
             return;
         }
 
+        // 2. Вывод PID
         Console.WriteLine($"Server PID: {System.Environment.ProcessId}");
 
-        //ЗАПРОС ПАРОЛЯ ДЛЯ БД
+        // 3. ЗАПРОС ПАРОЛЯ ДЛЯ БД
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Enter PostgreSQL password: ");
         Console.ResetColor();
         
         string password = Console.ReadLine()?.Trim() ?? "";
 
+        // Настраиваем конфигурацию
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true)
@@ -42,44 +44,61 @@ class Program
 
         _logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
+        // 4. Подключаем БД
         await InitializeDatabase(serviceProvider);
 
         _logger.LogInformation($"Daemon starting on port {port}...");
-        await StartTcpServer(port, serviceProvider);
 
-        _logger.LogInformation($"Daemon starting on port {port}...");
-
-        ClientHandler.OnMessageBroadcast += async (json, senderId, roomId) =>
+        // ====================================================================
+        //  ↓↓↓ ВСТАВЛЕНО: ЛОГИКА РАССЫЛКИ (BROADCAST) ↓↓↓
+        // ====================================================================
+        ClientHandler.OnMessageBroadcast += async (jsonMessage, senderId, roomId) =>
         {
+            // Создаем scope для доступа к базе данных
             using (var scope = serviceProvider.CreateScope())
             {
                 var chatService = scope.ServiceProvider.GetRequiredService<ChatService>();
-                List<int> membersInChat = await chatService.GetRoomUserIdsAsync(roomId);
-                List<ClientHandler> onlineClients;
+                
+                // Получаем список участников комнаты
+                List<int> memberIds = await chatService.GetRoomUserIdsAsync(roomId);
+
+                List<ClientHandler> activeClients;
                 lock (_lock)
                 {
-                    onlineClients = _clients.ToList();
+                    activeClients = _clients.ToList();
                 }
-                foreach (var client in onlineClients)
-                {                    
-                    if (client.UserId != 0 && membersInChat.Contains(client.UserId))
+
+                foreach (var client in activeClients)
+                {
+                    // Отправляем сообщение только тем, кто:
+                    // 1. Залогинен (UserId != 0)
+                    // 2. Состоит в этой комнате (есть в списке memberIds)
+                    if (client.UserId != 0 && memberIds.Contains(client.UserId))
                     {
                         try 
                         {
-                            await client.SendRawMessageAsync(json);
+                            await client.SendRawMessageAsync(jsonMessage);
                         }
-                        catch { }
+                        catch 
+                        {
+                            // Игнорируем ошибки (клиент мог отвалиться)
+                        }
                     }
                 }
             }
         };
+        // ====================================================================
+        //  ↑↑↑ КОНЕЦ ВСТАВКИ ↑↑↑
+        // ====================================================================
+
+        // 5. Запускаем "Демона"
         await StartTcpServer(port, serviceProvider);
     }
 
     static void ConfigureServices(IServiceCollection services, IConfiguration configuration, string manualPassword)
     {
         services.AddLogging(builder => builder.AddConsole());
-
+        
         var connectionString = $"Host=localhost;Port=5432;Database=uchat;Username=postgres;Password={manualPassword}";
 
         services.AddDbContext<ChatContext>(options =>
@@ -95,15 +114,24 @@ class Program
         var context = scope.ServiceProvider.GetRequiredService<ChatContext>();
         try
         {
-            await context.Database.MigrateAsync();
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("--> [Success] Database connected and migrated.");
+            // EnsureCreatedAsync: Создает базу и таблицы без миграций
+            bool created = await context.Database.EnsureCreatedAsync();
+
+            if (created)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("--> [Success] Database created from scratch (No migrations used).");
+            }
+            else
+            {
+                Console.WriteLine("--> [System] Database already exists.");
+            }
             Console.ResetColor();
         }
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"--> [Error] DB Connection failed: {ex.Message}");
+            Console.WriteLine($"--> [Error] DB Creation failed: {ex.Message}");
             Console.WriteLine("--> Проверьте пароль и перезапустите сервер.");
             Console.ResetColor();
         }
@@ -123,10 +151,8 @@ class Program
                 var client = await listener.AcceptTcpClientAsync();
                 _logger.LogInformation("New client connected");
 
-                // Запускаем обработку клиента в отдельном потоке
                 _ = Task.Run(async () =>
                 {
-                    // Создаем scope, чтобы сервисы (DbContext) жили только пока жив клиент
                     using var scope = serviceProvider.CreateScope();
                     
                     var handler = new ClientHandler(
@@ -136,7 +162,6 @@ class Program
                         scope.ServiceProvider.GetRequiredService<ILogger<ClientHandler>>()
                     );
 
-                    // БЕЗОПАСНО добавляем в список (lock)
                     lock (_lock)
                     {
                         _clients.Add(handler);
@@ -152,7 +177,6 @@ class Program
                     }
                     finally
                     {
-                        // БЕЗОПАСНО удаляем из списка при отключении
                         lock (_lock)
                         {
                             _clients.Remove(handler);

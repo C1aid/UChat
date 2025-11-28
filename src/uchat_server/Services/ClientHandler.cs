@@ -108,6 +108,9 @@ namespace uchat_server.Services
                 case "/help":
                     await ShowHelp();
                     break;
+                case "/chat":
+                    await StartPrivateChat(parts);
+                    break;
                 default:
                     await SendResponse(new ApiResponse { Success = false, Message = "Unknown command" });
                     break;
@@ -243,6 +246,42 @@ namespace uchat_server.Services
         {
             var json = JsonSerializer.Serialize(response);
             await _writer.WriteLineAsync(json);
+        }
+
+        private async Task StartPrivateChat(string[] parts)
+        {
+            if (_currentUser == null)
+            {
+                await SendResponse(new ApiResponse { Success = false, Message = "Please login first" });
+                return;
+            }
+
+            if (parts.Length < 2)
+            {
+                await SendResponse(new ApiResponse { Success = false, Message = "Usage: /chat <target_username>" });
+                return;
+            }
+
+            string targetUsername = parts[1];
+            int roomId = await _chatService.CreatePrivateChatAsync(_currentUser.Id, targetUsername);
+
+            if (roomId == -1)
+            {
+                await SendResponse(new ApiResponse { Success = false, Message = "User not found" });
+            }
+            else if (roomId == -2)
+            {
+                await SendResponse(new ApiResponse { Success = false, Message = "You cannot chat with yourself" });
+            }
+            else
+            {
+                await SendResponse(new ApiResponse 
+                { 
+                    Success = true, 
+                    Message = $"Chat started with {targetUsername}", 
+                    Data = new { RoomId = roomId }
+                });
+            }
         }
     }
 }
