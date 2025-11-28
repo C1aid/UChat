@@ -73,13 +73,10 @@ namespace uchat_server.Services
 
         public async Task<int> CreatePrivateChatAsync(int currentUserId, string targetUsername)
         {
-            // 1. Ищем пользователя, с которым хотим общаться
             var targetUser = await _context.Users.FirstOrDefaultAsync(u => u.Username == targetUsername);
-            
-            if (targetUser == null) return -1; // Пользователь не найден
-            if (targetUser.Id == currentUserId) return -2; // Нельзя писать самому себе
+            if (targetUser == null) return -1;
+            if (targetUser.Id == currentUserId) return -2;
 
-            // 2. Проверяем, есть ли уже у нас с ним личка (IsGroup = false)
             var existingChat = await _context.ChatRooms
                 .Where(r => !r.IsGroup)
                 .Where(r => r.Members.Any(m => m.UserId == currentUserId) && 
@@ -88,18 +85,16 @@ namespace uchat_server.Services
 
             if (existingChat != null)
             {
-                return existingChat.Id; // Чат уже есть, возвращаем его ID
+                return existingChat.Id;
             }
 
-            // 3. Если нет — создаем новый
             var newChat = new ChatRoom
             {
                 IsGroup = false,
-                Name = string.Empty, // Имя для лички генерируется динамически
+                Name = string.Empty,
                 CreatedAt = DateTime.UtcNow
             };
 
-            // Добавляем обоих участников
             newChat.Members.Add(new ChatRoomMember { UserId = currentUserId, IsAdmin = true });
             newChat.Members.Add(new ChatRoomMember { UserId = targetUser.Id, IsAdmin = true });
 

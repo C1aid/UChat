@@ -22,17 +22,14 @@ class Program
             return;
         }
 
-        // 2. Вывод PID
         Console.WriteLine($"Server PID: {System.Environment.ProcessId}");
 
-        // 3. ЗАПРОС ПАРОЛЯ ДЛЯ БД
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("Enter PostgreSQL password: ");
         Console.ResetColor();
         
         string password = Console.ReadLine()?.Trim() ?? "";
 
-        // Настраиваем конфигурацию
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true)
@@ -44,22 +41,16 @@ class Program
 
         _logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
-        // 4. Подключаем БД
         await InitializeDatabase(serviceProvider);
 
         _logger.LogInformation($"Daemon starting on port {port}...");
 
-        // ====================================================================
-        //  ↓↓↓ ВСТАВЛЕНО: ЛОГИКА РАССЫЛКИ (BROADCAST) ↓↓↓
-        // ====================================================================
         ClientHandler.OnMessageBroadcast += async (jsonMessage, senderId, roomId) =>
         {
-            // Создаем scope для доступа к базе данных
             using (var scope = serviceProvider.CreateScope())
             {
                 var chatService = scope.ServiceProvider.GetRequiredService<ChatService>();
                 
-                // Получаем список участников комнаты
                 List<int> memberIds = await chatService.GetRoomUserIdsAsync(roomId);
 
                 List<ClientHandler> activeClients;
@@ -70,9 +61,6 @@ class Program
 
                 foreach (var client in activeClients)
                 {
-                    // Отправляем сообщение только тем, кто:
-                    // 1. Залогинен (UserId != 0)
-                    // 2. Состоит в этой комнате (есть в списке memberIds)
                     if (client.UserId != 0 && memberIds.Contains(client.UserId))
                     {
                         try 
@@ -87,11 +75,6 @@ class Program
                 }
             }
         };
-        // ====================================================================
-        //  ↑↑↑ КОНЕЦ ВСТАВКИ ↑↑↑
-        // ====================================================================
-
-        // 5. Запускаем "Демона"
         await StartTcpServer(port, serviceProvider);
     }
 
