@@ -1,4 +1,4 @@
-using Uchat.Shared.Enums;
+using System;
 
 namespace Uchat.Shared.DTOs
 {
@@ -6,8 +6,11 @@ namespace Uchat.Shared.DTOs
     {
         public int Id { get; set; }
         public string Content { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
         public DateTime SentAt { get; set; }
-        public MessageType MessageType { get; set; }
+        public DateTime? EditedAt { get; set; }
+        public int UserId { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public int ChatRoomId { get; set; }
+        public int MessageType { get; set; } 
     }
 }

@@ -1,30 +1,263 @@
-﻿using System.Windows;
-using System.Windows.Input;
-using uchat.Services;
-using System.Text.Json;
+﻿using System;
 using System.Collections.ObjectModel;
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Input;
+using System.Linq;
+using uchat.Services;
 using Uchat.Shared.DTOs;
 
 namespace uchat
 {
     public partial class MainWindow : Window
     {
-        private readonly NetworkClient _network;
+        private readonly NetworkClient? _network;
         private int _currentRoomId = 0;
-        private bool _isClosing = false;
+
         public ObservableCollection<MessageDto> ChatMessages { get; set; } = new ObservableCollection<MessageDto>();
+        public ObservableCollection<ChatInfoDto> ChatList { get; set; } = new ObservableCollection<ChatInfoDto>();
 
         public MainWindow(NetworkClient network)
         {
             InitializeComponent();
+            DataContext = this;
             _network = network;
-            ListenForMessages();
+
+            if (_network == null)
+            {
+                Close();
+                return;
+            }
+
+            _network.MessageReceived += OnMessageReceived;
+            _network.ConnectionLost += OnConnectionLost;
+
+            ChatsList.SelectionChanged += async (sender, e) =>
+            {
+                if (ChatsList.SelectedItem is ChatInfoDto selectedChat)
+                {
+                    await OpenChatAsync(selectedChat.Id);
+                }
+            };
+
+            Loaded += MainWindow_Loaded;
+        }
+
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            await LoadChatsAsync();
+        }
+
+        private async Task LoadChatsAsync()
+        {
+            try
+            {
+                if (_network != null && _network.IsConnected)
+                {
+                    await _network.SendMessageAsync("/getchats");
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private async void NewChatButton_Click(object sender, RoutedEventArgs e)
+        {
+            string username = NewChatUsername.Text.Trim();
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                MessageBox.Show("Введите имя пользователя");
+                return;
+            }
+
+            try
+            {
+                if (_network != null && _network.IsConnected)
+                {
+                    await _network.SendMessageAsync($"/chat {username}");
+                    NewChatUsername.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка создания чата: {ex.Message}");
+            }
+        }
+
+        private async Task OpenChatAsync(int roomId)
+        {
+            try
+            {
+                if (_network == null || !_network.IsConnected) return;
+
+                await _network.SendMessageAsync($"/join {roomId}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка открытия чата: {ex.Message}");
+            }
+        }
+
+        private void OnMessageReceived(string messageJson)
+        {
+            try
+            {
+                var response = JsonSerializer.Deserialize<ApiResponse>(messageJson);
+                if (response == null) return;
+
+                Dispatcher.Invoke(() =>
+                {
+                    ProcessApiResponse(response);
+                });
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void ProcessApiResponse(ApiResponse response)
+        {
+            try
+            {
+                if (!response.Success) return;
+
+                if (response.Message == "User chats" && response.Data is JsonElement chatsData)
+                {
+                    var chats = JsonSerializer.Deserialize<ChatInfoDto[]>(chatsData.GetRawText());
+                    if (chats != null)
+                    {
+                        ChatList.Clear();
+                        foreach (var chat in chats)
+                        {
+                            ChatList.Add(chat);
+                        }
+
+                        if (ChatList.Count > 0)
+                        {
+                            ChatsList.SelectedItem = ChatList[0];
+                        }
+                    }
+                }
+                else if ((response.Message.StartsWith("Chat started") || response.Message == "Joined chat room") &&
+                         response.Data is JsonElement chatData)
+                {
+                    ProcessChatResponse(chatData);
+                }
+                else if (response.Message == "New message" && response.Data is JsonElement msgData)
+                {
+                    ProcessNewMessage(msgData);
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void ProcessChatResponse(JsonElement chatData)
+        {
+            try
+            {
+                var chatResponse = JsonSerializer.Deserialize<ChatResponseData>(chatData.GetRawText());
+                if (chatResponse == null) return;
+
+                _currentRoomId = chatResponse.RoomId;
+                ChatMessages.Clear();
+
+                if (chatResponse.History != null)
+                {
+                    foreach (var msg in chatResponse.History)
+                    {
+                        ChatMessages.Add(msg);
+                    }
+
+                    if (MessagesList.Items.Count > 0)
+                    {
+                        MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
+                    }
+                }
+
+                Title = $"Uchat - Чат с {chatResponse.TargetUser}";
+                MessageInput.Focus();
+
+                AddOrUpdateChatInList(chatResponse);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private class ChatResponseData
+        {
+            public int RoomId { get; set; }
+            public string TargetUser { get; set; } = string.Empty;
+            public int OtherUserId { get; set; }
+            public MessageDto[] History { get; set; } = Array.Empty<MessageDto>();
+        }
+
+        private void ProcessNewMessage(JsonElement msgData)
+        {
+            try
+            {
+                var msgDto = JsonSerializer.Deserialize<MessageDto>(msgData.GetRawText());
+                if (msgDto != null && msgDto.ChatRoomId == _currentRoomId)
+                {
+                    ChatMessages.Add(msgDto);
+                    if (MessagesList.Items.Count > 0)
+                    {
+                        MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void AddOrUpdateChatInList(ChatResponseData chatData)
+        {
+            var existingChat = ChatList.FirstOrDefault(c => c.Id == chatData.RoomId);
+            if (existingChat == null)
+            {
+                ChatList.Add(new ChatInfoDto
+                {
+                    Id = chatData.RoomId,
+                    OtherUserId = chatData.OtherUserId,
+                    OtherUsername = chatData.TargetUser,
+                    Name = $"Private_{_currentRoomId}_{chatData.OtherUserId}",
+                    DisplayName = chatData.TargetUser,
+                    IsGroup = false,
+                    Description = chatData.History?.LastOrDefault()?.Content ?? "Нет сообщений",
+                    CreatedAt = DateTime.Now,
+                    UnreadCount = 0,
+                    LastMessage = chatData.History?.LastOrDefault()?.Content,
+                    LastMessageTime = chatData.History?.LastOrDefault()?.SentAt
+                });
+            }
+            else
+            {
+                existingChat.DisplayName = chatData.TargetUser;
+                if (chatData.History?.Length > 0)
+                {
+                    existingChat.LastMessage = chatData.History.Last().Content;
+                    existingChat.LastMessageTime = chatData.History.Last().SentAt;
+                }
+            }
+        }
+
+        private void OnConnectionLost()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                MessageBox.Show("Потеряно соединение с сервером.");
+            });
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)
         {
             SendMessage();
         }
+
         private void MessageInput_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -38,169 +271,47 @@ namespace uchat
             string text = MessageInput.Text;
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            // СЦЕНАРИЙ 1: Это команда (например: /chat <user>)
-            if (text.StartsWith("/"))
+            if (_network == null || !_network.IsConnected)
             {
-                await _network.SendMessageAsync(text);
+                MessageBox.Show("Нет соединения с сервером");
+                return;
             }
-            // СЦЕНАРИЙ 2: Это обычное сообщение
-            else
+
+            try
             {
                 if (_currentRoomId == 0)
                 {
-                    AddSystemMessage("Сначала начните диалог командой: /chat <username>");
+                    MessageBox.Show("Сначала выберите чат из списка");
                     MessageInput.Clear();
                     return;
                 }
 
-                // Упаковываем в JSON с ID комнаты
-                var dto = new ClientMessageDto
-                {
-                    Content = text,
-                    RoomId = _currentRoomId
-                };
-
-                string json = JsonSerializer.Serialize(dto);
-                await _network.SendMessageAsync(json);
+                await _network.SendMessageAsync(text);
+                MessageInput.Clear();
             }
-
-            MessageInput.Clear();
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка отправки: {ex.Message}");
+            }
         }
 
-        // --- ПОЛУЧЕНИЕ СООБЩЕНИЙ (САМОЕ ВАЖНОЕ) ---
-
-        private async void ListenForMessages()
+        protected override void OnClosed(EventArgs e)
         {
             try
             {
-                while (!_isClosing)
+                if (_network != null)
                 {
-                    // 1. Ждем строку от сервера (await не вешает интерфейс)
-                    string? json = await _network.ReceiveMessageAsync();
-
-                    // Если пришел null, значит сервер отключился
-                    if (json == null) 
-                    {
-                        AddSystemMessage("Потеряно соединение с сервером.");
-                        break; 
-                    }
-
-                    try 
-                    {
-                        // ЛОГИКА РАСПОЗНАВАНИЯ: Что нам прислали?
-
-                        // ВАРИАНТ А: Это сервисный ответ (ApiResponse)
-                        // (Обычно содержит поля "Success" и "Message")
-                        if (json.Contains("\"Success\":"))
-                        {
-                            var response = JsonSerializer.Deserialize<ApiResponse>(json);
-                            if (response != null)
-                            {
-                                if (response.Success)
-                                {
-                                    // Особый случай: Сервер сообщил, что чат создан.
-                                    // Нам нужно достать RoomId из поля Data.
-                                    if (response.Message.StartsWith("Chat started") && response.Data is JsonElement data)
-                                    {
-                                        if (data.TryGetProperty("RoomId", out var idProp))
-                                        {
-                                            _currentRoomId = idProp.GetInt32();
-                                            
-                                            // Очищаем экран для нового чата
-                                            Dispatcher.Invoke(() => ChatMessages.Clear());
-                                            
-                                            AddSystemMessage($"--- Вы перешли в чат #{_currentRoomId} ---");
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Просто успешное действие (например, "Message sent") - можно игнорировать или логировать
-                                        // AddSystemMessage($"[Инфо]: {response.Message}");
-                                    }
-                                }
-                                else
-                                {
-                                    // Сервер вернул ошибку (Success = false)
-                                    AddSystemMessage($"ОШИБКА: {response.Message}");
-                                }
-                            }
-                        }
-                        // ВАРИАНТ Б: Это сообщение чата (MessageDto)
-                        // (Обычно содержит "Username" и "Content")
-                        else 
-                        {
-                            var msg = JsonSerializer.Deserialize<MessageDto>(json);
-                            if (msg != null)
-                            {
-                                // Важно: проверяем, для этой ли комнаты сообщение?
-                                // (Если вы оставили серверную фильтрацию, это не обязательно, но полезно для надежности)
-                                /*
-                                if (msg.ChatRoomId != 0 && msg.ChatRoomId != _currentRoomId) 
-                                    return; // Игнорируем сообщения из других чатов
-                                */
-
-                                AddMessageToUi(msg);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        // Если пришел битый JSON
-                        // AddSystemMessage($"Ошибка обработки: {ex.Message}");
-                    }
+                    _network.MessageReceived -= OnMessageReceived;
+                    _network.ConnectionLost -= OnConnectionLost;
+                    _network.Disconnect();
                 }
             }
             catch
             {
-                if (!_isClosing) AddSystemMessage("Ошибка сети.");
             }
-        }
 
-        // Вспомогательный метод для добавления сообщений в список (строго в UI потоке)
-        private void AddMessageToUi(MessageDto msg)
-        {
-            Dispatcher.Invoke(() => 
-            {
-                ChatMessages.Add(msg);
-                
-                // Автопрокрутка вниз
-                if (MessagesList.Items.Count > 0)
-                {
-                    MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
-                }
-            });
-        }
-
-        // Вспомогательный метод для системных сообщений (ошибки, инфо)
-        private void AddSystemMessage(string text)
-        {
-            AddMessageToUi(new MessageDto 
-            { 
-                Username = "СИСТЕМА", 
-                Content = text, 
-                SentAt = DateTime.Now 
-            });
-        }
-
-        // Метод для безопасного обновления интерфейса
-        private void AddMessageToChat(string message)
-        {
-            // WPF запрещает менять интерфейс из чужого потока.
-            // Dispatcher.Invoke говорит: "Эй, главное окно, сделай это сам, когда освободишься"
-            Dispatcher.Invoke(() => 
-            {
-                MessagesList.Items.Add(message);
-                // Автопрокрутка вниз
-                MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
-            });
-        }
-
-        // Когда окно закрывается - останавливаем всё
-        protected override void OnClosed(EventArgs e)
-        {
-            _isClosing = true;
             base.OnClosed(e);
-            Application.Current.Shutdown(); // Полностью убиваем приложение
+            Application.Current.Shutdown();
         }
     }
 }
