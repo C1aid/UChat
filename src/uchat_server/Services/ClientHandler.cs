@@ -171,7 +171,7 @@ namespace uchat_server.Services
                             Name = chat.Name,
                             DisplayName = otherUser?.Username ?? "Unknown",
                             IsGroup = chat.IsGroup,
-                            Description = lastMessage?.Content ?? "Нет сообщений",
+                            Description = lastMessage?.Content ?? "пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ",
                             OtherUserId = otherMember.UserId,
                             OtherUsername = otherUser?.Username ?? "Unknown",
                             CreatedAt = chat.CreatedAt,
@@ -435,7 +435,7 @@ namespace uchat_server.Services
                                         Name = chat.Name,
                                         DisplayName = otherUser?.Username ?? "Unknown",
                                         IsGroup = chat.IsGroup,
-                                        Description = lastMessage?.Content ?? "Нет сообщений",
+                                        Description = lastMessage?.Content ?? "пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ",
                                         OtherUserId = otherMember.UserId,
                                         OtherUsername = otherUser?.Username ?? "Unknown",
                                         CreatedAt = chat.CreatedAt,
@@ -533,6 +533,18 @@ namespace uchat_server.Services
             {
                 _logger.LogError(ex, "Error sending response");
             }
+        }
+
+        public async Task SendDtoAsync(object dto)
+        {
+            var notificationResponse = new ApiResponse
+            {
+                Success = true,
+                Message = "Notification sent.",
+                Data = dto
+            };
+
+            await SendResponseAsync(notificationResponse);
         }
     }
 }

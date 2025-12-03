@@ -19,25 +19,53 @@ class Program
 
         Console.WriteLine($"Server PID: {Environment.ProcessId}");
 
+        string dbPassword = GetPasswordInteractive();
+
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true)
             .Build();
 
         var services = new ServiceCollection();
-        ConfigureServices(services);
+        ConfigureServices(services, dbPassword);
         var serviceProvider = services.BuildServiceProvider();
 
         await InitializeDatabase(serviceProvider);
         await StartTcpServer(port, serviceProvider);
     }
 
-    static void ConfigureServices(IServiceCollection services)
+    static string GetPasswordInteractive()
+    {
+        Console.Write("Enter PostgreSQL password for 'postgres': ");
+        var password = string.Empty;
+        ConsoleKeyInfo key;
+        do
+        {
+            key = Console.ReadKey(true);
+            if (key.Key == ConsoleKey.Enter)
+                break;
+            if (key.Key == ConsoleKey.Backspace && password.Length > 0)
+            {
+                password = password[0..^1];
+                Console.Write("\b \b");
+            }
+            else if (!char.IsControl(key.KeyChar))
+            {
+                password += key.KeyChar;
+                Console.Write("*");
+            }
+
+        } while (key.Key != ConsoleKey.Enter);
+        Console.WriteLine();
+        return password;
+    }
+
+    static void ConfigureServices(IServiceCollection services, string dbPassword = "")
     {
         services.AddLogging(builder => builder.AddConsole());
 
         services.AddDbContext<ChatContext>(options =>
-            options.UseNpgsql("Host=localhost;Port=5432;Database=uchat;Username=postgres;Password=securepass"));
+            options.UseNpgsql($"Host=localhost;Port=5432;Database=uchat;Username=postgres;Password={dbPassword}"));
 
         services.AddSingleton<ConnectionManager>();
         services.AddScoped<AuthService>();

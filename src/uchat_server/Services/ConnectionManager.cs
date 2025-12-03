@@ -23,6 +23,11 @@ namespace uchat_server.Services
             return handler;
         }
 
+        public bool IsUserOnline(int userId)
+        {
+            return _userConnections.ContainsKey(userId);
+        }
+
         public void JoinRoom(int userId, int roomId, ClientHandler handler)
         {
             _roomConnections.AddOrUpdate(roomId,

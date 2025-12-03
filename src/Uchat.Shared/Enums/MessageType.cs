@@ -7,6 +7,7 @@ namespace Uchat.Shared.Enums
         File = 2,
         Audio = 3,
         Video = 4,
-        Sticker = 5
+        Sticker = 5,
+        NewChatNotification = 6
     }
 }

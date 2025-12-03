@@ -15,11 +15,13 @@ namespace uchat_server.Services
     {
         private readonly ChatContext _context;
         private readonly ILogger<ChatService> _logger;
+        private readonly ConnectionManager _connectionManager;
 
-        public ChatService(ChatContext context, ILogger<ChatService> logger)
+        public ChatService(ChatContext context, ILogger<ChatService> logger, ConnectionManager connectionManager)
         {
             _context = context;
             _logger = logger;
+            _connectionManager = connectionManager;
         }
 
         public async Task<User?> GetUserByUsernameAsync(string username)
@@ -92,6 +94,23 @@ namespace uchat_server.Services
 
             await _context.SaveChangesAsync();
 
+            int recipientId = userId2;
+            if (_connectionManager.IsUserOnline(recipientId))
+            {
+                var recipientHandler = _connectionManager.GetUserConnection(recipientId);
+
+                if (recipientHandler != null)
+                {
+                    var notificationDto = new MessageDto 
+                    {
+                        MessageType = MessageType.NewChatNotification,
+                        ChatRoomId = chatRoom.Id,
+                        Content = chatRoom.Description 
+                    };
+                    await recipientHandler.SendDtoAsync(notificationDto); 
+                }
+            }
+
             return chatRoom;
         }
 
@@ -129,7 +148,7 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = username,
                 ChatRoomId = message.ChatRoomId,
-                MessageType = (int)message.MessageType
+                MessageType = message.MessageType
             };
         }
 
@@ -150,7 +169,7 @@ namespace uchat_server.Services
                 UserId = m.UserId,
                 Username = m.User?.Username ?? "Unknown",
                 ChatRoomId = m.ChatRoomId,
-                MessageType = (int)m.MessageType
+                MessageType = m.MessageType
             }).ToArray();
         }
 
@@ -180,7 +199,7 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = message.User?.Username ?? "Unknown",
                 ChatRoomId = message.ChatRoomId,
-                MessageType = (int)message.MessageType
+                MessageType = message.MessageType
             };
         }
 
@@ -226,7 +245,7 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = message.User?.Username ?? "Unknown",
                 ChatRoomId = message.ChatRoomId,
-                MessageType = (int)message.MessageType
+                MessageType = message.MessageType
             };
         }
     }

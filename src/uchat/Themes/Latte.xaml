@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Color x:Key="WindowBackgroundColor">#DFD8C9</Color>
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}"/>
+    
+    <Color x:Key="LeftPanelColor">#B3AC9B</Color>
+    <SolidColorBrush x:Key="LeftPanelBrush" Color="{StaticResource LeftPanelColor}"/>
+    
+    <Color x:Key="ChatListColor">#E1D9C5</Color>
+    <SolidColorBrush x:Key="ChatListBrush" Color="{StaticResource ChatListColor}"/>
+
+    <Color x:Key="MessageInputColor">#FFFFFF</Color>
+    <SolidColorBrush x:Key="MessageInputBrush" Color="{StaticResource MessageInputColor}"/>
+
+    <SolidColorBrush x:Key="AccentBrush" Color="#0078D4"/>
+    
+    <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="White"/>
+    <SolidColorBrush x:Key="ForegroundSecondaryBrush" Color="#AAAAAA"/>
+    
+    <SolidColorBrush x:Key="BorderBrushColor" Color="#555555"/>
+    
+</ResourceDictionary>

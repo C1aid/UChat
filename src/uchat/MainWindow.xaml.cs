@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Linq;
 using uchat.Services;
 using Uchat.Shared.DTOs;
+using Uchat.Shared.Enums;
 
 namespace uchat
 {
@@ -20,9 +21,9 @@ namespace uchat
         public MainWindow(NetworkClient network)
         {
             InitializeComponent();
+            SwitchTheme("Latte");
             DataContext = this;
             _network = network;
-
             if (_network == null)
             {
                 Close();
@@ -148,10 +149,23 @@ namespace uchat
                 {
                     ProcessNewMessage(msgData);
                 }
+                else if (response.Data is JsonElement notificationData)
+                {
+                    var msgDto = JsonSerializer.Deserialize<MessageDto>(notificationData.GetRawText());
+                    if (msgDto != null && msgDto.MessageType == MessageType.NewChatNotification) 
+                    {
+                        ProcessNewChatNotification(msgDto.ChatRoomId);
+                    }
+                }
             }
             catch (Exception)
             {
             }
+        }
+
+        private async void ProcessNewChatNotification(int newChatId)
+        {
+            await LoadChatsAsync();
         }
 
         private void ProcessChatResponse(JsonElement chatData)
@@ -312,6 +326,22 @@ namespace uchat
 
             base.OnClosed(e);
             Application.Current.Shutdown();
+        }
+        private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (this.WindowState == WindowState.Normal)
+            {
+                this.DragMove();
+            }
+        }
+
+        public void SwitchTheme(string themeName)
+        {
+            var uri = new Uri($"Themes/{themeName}.xaml", UriKind.Relative);
+            ResourceDictionary newTheme = new ResourceDictionary() { Source = uri };
+            var mergedDicts = Application.Current.Resources.MergedDictionaries;
+            mergedDicts.Clear();
+            mergedDicts.Add(newTheme);
         }
     }
 }
