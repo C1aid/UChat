@@ -18,6 +18,14 @@ namespace uchat
         public ObservableCollection<MessageDto> ChatMessages { get; set; } = new ObservableCollection<MessageDto>();
         public ObservableCollection<ChatInfoDto> ChatList { get; set; } = new ObservableCollection<ChatInfoDto>();
 
+       
+        private bool _isManuallyMaximized = false;
+        private double _restoreWidth;
+        private double _restoreHeight;
+        private double _restoreTop;
+        private double _restoreLeft;
+
+
         public MainWindow(NetworkClient network)
         {
             InitializeComponent();
@@ -329,7 +337,12 @@ namespace uchat
         }
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (this.WindowState == WindowState.Normal)
+            if (e.ClickCount == 2)
+            {
+                MaximizeButton_Click(sender, e);
+                return;
+            }
+            if (!_isManuallyMaximized)
             {
                 this.DragMove();
             }
@@ -342,6 +355,45 @@ namespace uchat
             var mergedDicts = Application.Current.Resources.MergedDictionaries;
             mergedDicts.Clear();
             mergedDicts.Add(newTheme);
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.Close();
+        }
+
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
+
+
+        private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isManuallyMaximized)
+            {
+                this.Width = _restoreWidth;
+                this.Height = _restoreHeight;
+                this.Top = _restoreTop;
+                this.Left = _restoreLeft;
+                this.WindowState = WindowState.Normal;
+                _isManuallyMaximized = false;
+            }
+            else
+            {
+                _restoreWidth = this.Width;
+                _restoreHeight = this.Height;
+                _restoreTop = this.Top;
+                _restoreLeft = this.Left;
+                this.Width = SystemParameters.WorkArea.Width;
+                this.Height = SystemParameters.WorkArea.Height;
+                this.Top = SystemParameters.WorkArea.Top;
+                this.Left = SystemParameters.WorkArea.Left;
+
+                this.WindowState = WindowState.Normal;
+                
+                _isManuallyMaximized = true;
+            }
         }
     }
 }
