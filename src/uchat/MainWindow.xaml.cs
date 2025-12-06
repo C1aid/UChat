@@ -7,6 +7,11 @@ using System.Linq;
 using uchat.Services;
 using Uchat.Shared.DTOs;
 using Uchat.Shared.Enums;
+using System.IO;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace uchat
 {
@@ -24,6 +29,7 @@ namespace uchat
         private double _restoreHeight;
         private double _restoreTop;
         private double _restoreLeft;
+        private readonly SemaphoreSlim _mediaDownloadSemaphore = new(1, 1);
 
 
         public MainWindow(NetworkClient network)
@@ -191,6 +197,7 @@ namespace uchat
                     foreach (var msg in chatResponse.History)
                     {
                         ChatMessages.Add(msg);
+                        QueueAutoDownload(msg);
                     }
 
                     if (MessagesList.Items.Count > 0)
@@ -225,6 +232,7 @@ namespace uchat
                 if (msgDto != null && msgDto.ChatRoomId == _currentRoomId)
                 {
                     ChatMessages.Add(msgDto);
+                    QueueAutoDownload(msgDto);
                     if (MessagesList.Items.Count > 0)
                     {
                         MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
@@ -394,6 +402,219 @@ namespace uchat
                 
                 _isManuallyMaximized = true;
             }
+        }
+
+        private async void SendFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_network == null || !_network.IsConnected || _currentRoomId == 0)
+            {
+                MessageBox.Show("Підключіться до сервера та виберіть чат.");
+                return;
+            }
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog();
+            openFileDialog.Filter = "Images (*.png;*.jpg)|*.png;*.jpg|Audio (*.mp3;*.wav)|*.mp3;*.wav|All files (*.*)|*.*";
+            
+            if (openFileDialog.ShowDialog() == true)
+            {
+                string filePath = openFileDialog.FileName;
+                
+                MessageType messageType = GetMessageTypeFromFile(filePath); 
+
+                var response = await _network.SendFileMessageAsync(_currentRoomId, filePath, messageType);
+
+                if (!response.Success)
+                {
+                    MessageBox.Show($"Помилка відправки файлу: {response.Message}");
+                }
+                else if (response.Data != null)
+                {
+                    try
+                    {
+                        var dataElement = (JsonElement)response.Data;
+                        var msgDto = JsonSerializer.Deserialize<MessageDto>(dataElement.GetRawText());
+                        if (msgDto != null && msgDto.ChatRoomId == _currentRoomId)
+                        {
+                            msgDto.LocalFilePath = filePath;
+                            ChatMessages.Add(msgDto);
+                            if (MessagesList.Items.Count > 0)
+                            {
+                                MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
+                            }
+                            RefreshMessagesView();
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+
+
+        private async void DownloadFileButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            if (button?.Tag == null) return;
+            
+            string fileId = button.Tag.ToString()!;
+
+            if (_network == null || !_network.IsConnected)
+            {
+                MessageBox.Show("Not connected to server");
+                return;
+            }
+
+            string defaultFileName = "downloaded_file";
+            
+            if (button.DataContext is MessageDto msg && !string.IsNullOrEmpty(msg.FileName))
+            {
+                defaultFileName = msg.FileName;
+            }
+
+            string downloadFolder = EnsureDownloadDirectory();
+            string sanitizedName = SanitizeFileName(defaultFileName);
+            string savePath = Path.Combine(downloadFolder, sanitizedName);
+
+            if (File.Exists(savePath))
+            {
+                if (button.DataContext is MessageDto alreadyDownloaded)
+                {
+                    alreadyDownloaded.LocalFilePath = savePath;
+                    CollectionViewSource.GetDefaultView(ChatMessages)?.Refresh();
+                }
+
+                MessageBox.Show($"Файл уже сохранён:\n{savePath}", "Уже загружен", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var (success, message) = await _network.DownloadFileAsync(fileId, savePath);
+
+            if (success)
+            {
+                if (button.DataContext is MessageDto downloadedMessage)
+                {
+                    downloadedMessage.LocalFilePath = savePath;
+                    RefreshMessagesView();
+                }
+
+                MessageBox.Show($"Файл сохранён в {savePath}", "Готово", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show($"Помилка завантаження: {message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private MessageType GetMessageTypeFromFile(string filePath)
+        {
+            string ext = Path.GetExtension(filePath).ToLower();
+            
+            if (ext == ".jpg" || ext == ".png" || ext == ".gif")
+            {
+                return MessageType.Image;
+            }
+            if (ext == ".mp3" || ext == ".wav")
+            {
+                return MessageType.Audio;
+            }
+            return  MessageType.File; 
+        }
+
+        private string EnsureDownloadDirectory()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string downloadDir = Path.Combine(baseDir, "Node_Downloads");
+            Directory.CreateDirectory(downloadDir);
+            return downloadDir;
+        }
+
+        private string SanitizeFileName(string? originalFileName)
+        {
+            string fallback = "uchat_file";
+            if (string.IsNullOrWhiteSpace(originalFileName))
+            {
+                return fallback;
+            }
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var chunks = originalFileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries);
+            string sanitized = string.Join("_", chunks);
+
+            if (string.IsNullOrWhiteSpace(sanitized))
+            {
+                sanitized = fallback;
+            }
+
+            return sanitized;
+        }
+
+        private void QueueAutoDownload(MessageDto message)
+        {
+            if (message == null) return;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await EnsureLocalMediaAsync(message);
+                }
+                catch
+                {
+                }
+            });
+        }
+
+        private async Task EnsureLocalMediaAsync(MessageDto message)
+        {
+            if (message == null || _network == null || !_network.IsConnected)
+                return;
+            if (message.MessageType != MessageType.Image)
+                return;
+            if (string.IsNullOrEmpty(message.FileUrl))
+                return;
+            if (!string.IsNullOrEmpty(message.LocalFilePath) && File.Exists(message.LocalFilePath))
+            {
+                RefreshMessagesView();
+                return;
+            }
+
+            string downloadFolder = EnsureDownloadDirectory();
+            string sanitizedName = SanitizeFileName(message.FileName);
+            string savePath = Path.Combine(downloadFolder, sanitizedName);
+
+            if (File.Exists(savePath))
+            {
+                message.LocalFilePath = savePath;
+                RefreshMessagesView();
+                return;
+            }
+
+            await _mediaDownloadSemaphore.WaitAsync();
+            try
+            {
+                if (File.Exists(savePath))
+                {
+                    message.LocalFilePath = savePath;
+                    RefreshMessagesView();
+                    return;
+                }
+
+                var (success, _) = await _network.DownloadFileAsync(message.FileUrl, savePath);
+                if (success)
+                {
+                    message.LocalFilePath = savePath;
+                    RefreshMessagesView();
+                }
+            }
+            finally
+            {
+                _mediaDownloadSemaphore.Release();
+            }
+        }
+
+        private void RefreshMessagesView()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                CollectionViewSource.GetDefaultView(ChatMessages)?.Refresh();
+            });
         }
     }
 }

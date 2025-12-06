@@ -169,7 +169,11 @@ namespace uchat_server.Services
                 UserId = m.UserId,
                 Username = m.User?.Username ?? "Unknown",
                 ChatRoomId = m.ChatRoomId,
-                MessageType = m.MessageType
+                MessageType = m.MessageType,
+                FileUrl = m.FileUrl ?? string.Empty,
+                FileName = m.FileName ?? string.Empty,
+                MimeType = m.MimeType ?? string.Empty,
+                FileSize = m.FileSize
             }).ToArray();
         }
 
@@ -199,7 +203,11 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = message.User?.Username ?? "Unknown",
                 ChatRoomId = message.ChatRoomId,
-                MessageType = message.MessageType
+                MessageType = message.MessageType,
+                FileUrl = message.FileUrl ?? string.Empty,
+                FileName = message.FileName ?? string.Empty,
+                MimeType = message.MimeType ?? string.Empty,
+                FileSize = message.FileSize
             };
         }
 
@@ -245,7 +253,89 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = message.User?.Username ?? "Unknown",
                 ChatRoomId = message.ChatRoomId,
-                MessageType = message.MessageType
+                MessageType = message.MessageType,
+                FileUrl = message.FileUrl ?? string.Empty,
+                FileName = message.FileName ?? string.Empty,
+                MimeType = message.MimeType ?? string.Empty,
+                FileSize = message.FileSize
+            };
+        }
+
+
+        public async Task SaveAndBroadcastFileMessageAsync(Uchat.Shared.DTOs.MessageDto dto)
+        {
+            var messageEntity = new Message
+            {
+                Content = dto.Content,
+                SentAt = DateTime.UtcNow,
+                UserId = dto.UserId,
+                ChatRoomId = dto.ChatRoomId,
+                MessageType = dto.MessageType,
+                FileUrl = dto.FileUrl,
+                FileName = dto.FileName,
+                MimeType = dto.MimeType,
+                FileSize = dto.FileSize
+            };
+
+            _context.Messages.Add(messageEntity);
+            await _context.SaveChangesAsync();
+            
+            dto.Id = messageEntity.Id; 
+            dto.SentAt = messageEntity.SentAt;
+
+            var connections = _connectionManager.GetRoomConnections(dto.ChatRoomId);
+            
+            foreach (var handler in connections)
+            {
+                await handler.SendDtoAsync(dto); 
+            }
+
+            _logger.LogInformation($"File message {dto.Id} broadcasted to room {dto.ChatRoomId}.");
+        }
+
+        public async Task SaveFileMessageAsync(Message message)
+        {
+            _context.Messages.Add(message);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task BroadcastFileMessageAsync(Uchat.Shared.DTOs.MessageDto dto)
+        {
+            var connections = _connectionManager.GetRoomConnections(dto.ChatRoomId);
+            
+            foreach (var handler in connections)
+            {
+                if (handler.CurrentUserId != dto.UserId)
+                {
+                    await handler.SendDtoAsync(dto);
+                }
+            }
+
+            _logger.LogInformation($"File message {dto.Id} broadcasted to room {dto.ChatRoomId} (excluding sender).");
+        }
+
+        public string GetMimeType(string fileName)
+        {
+            var ext = Path.GetExtension(fileName).ToLower();
+            return ext switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                ".mp3" => "audio/mpeg",
+                ".wav" => "audio/wav",
+                ".mp4" => "video/mp4",
+                ".webm" => "video/webm",
+                ".pdf" => "application/pdf",
+                ".txt" => "text/plain",
+                ".zip" => "application/zip",
+                ".rar" => "application/x-rar-compressed",
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".xls" => "application/vnd.ms-excel",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                _ => "application/octet-stream"
             };
         }
     }

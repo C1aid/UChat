@@ -47,6 +47,11 @@ namespace uchat_server.Data
                 entity.HasKey(m => m.Id);
                 entity.Property(m => m.Content).IsRequired();
                 entity.Property(m => m.SentAt).IsRequired();
+                entity.Property(m => m.MessageType).HasConversion<int>();
+                entity.Property(m => m.FileUrl).IsRequired(false);
+                entity.Property(m => m.FileName).IsRequired(false);
+                entity.Property(m => m.MimeType).IsRequired(false);
+                entity.Property(m => m.FileSize).HasDefaultValue(0);
 
                 entity.HasOne(m => m.User)
                     .WithMany(u => u.Messages)

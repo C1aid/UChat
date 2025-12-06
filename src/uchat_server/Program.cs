@@ -67,6 +67,7 @@ class Program
         services.AddDbContext<ChatContext>(options =>
             options.UseNpgsql($"Host=localhost;Port=5432;Database=uchat;Username=postgres;Password={dbPassword}"));
 
+        services.AddSingleton<FileStorageService>();
         services.AddSingleton<ConnectionManager>();
         services.AddScoped<AuthService>();
         services.AddScoped<ChatService>();
@@ -94,16 +95,34 @@ class Program
 
                 _ = Task.Run(async () =>
                 {
-                    using var scope = serviceProvider.CreateScope();
-                    var handler = new ClientHandler(
-                        client,
-                        scope.ServiceProvider.GetRequiredService<AuthService>(),
-                        scope.ServiceProvider.GetRequiredService<ChatService>(),
-                        scope.ServiceProvider.GetRequiredService<ConnectionManager>(),
-                        scope.ServiceProvider.GetRequiredService<ILogger<ClientHandler>>()
-                    );
+                    try
+                    {
+                        using var scope = serviceProvider.CreateScope();
+                        
+                        Console.WriteLine("[Server] Resolving services...");
 
-                    await handler.StartAsync();
+                        var fileStorage = scope.ServiceProvider.GetRequiredService<FileStorageService>(); 
+                        
+                        var handler = new ClientHandler(
+                            client,
+                            scope.ServiceProvider.GetRequiredService<AuthService>(),
+                            scope.ServiceProvider.GetRequiredService<ChatService>(),
+                            scope.ServiceProvider.GetRequiredService<ConnectionManager>(),
+                            scope.ServiceProvider.GetRequiredService<ILogger<ClientHandler>>(),
+                            fileStorage
+                        );
+
+                        Console.WriteLine("[Server] Handler created successfully. Starting...");
+                        await handler.StartAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"--------------------------------------------------");
+                        Console.WriteLine($"CRITICAL ERROR IN CLIENT THREAD:");
+                        Console.WriteLine(ex.ToString()); 
+                        Console.WriteLine($"--------------------------------------------------");
+                        client.Close();
+                    }
                 });
             }
             catch (Exception ex)
