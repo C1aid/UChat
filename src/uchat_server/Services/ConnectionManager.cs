@@ -60,17 +60,9 @@ namespace uchat_server.Services
             return new List<ClientHandler>();
         }
 
-        public List<int> GetUserRooms(int userId)
+        public List<ClientHandler> GetAllConnections()
         {
-            var rooms = new List<int>();
-            foreach (var roomEntry in _roomConnections)
-            {
-                if (roomEntry.Value.ContainsKey(userId))
-                {
-                    rooms.Add(roomEntry.Key);
-                }
-            }
-            return rooms;
+            return _userConnections.Values.ToList();
         }
     }
 }

@@ -12,7 +12,13 @@ namespace Uchat.Shared.DTOs
         {
             if (Data is JsonElement jsonElement)
             {
-                return JsonSerializer.Deserialize<T>(jsonElement.GetRawText());
+                // Используем опции для case-insensitive десериализации
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                };
+                return JsonSerializer.Deserialize<T>(jsonElement.GetRawText(), options);
             }
             return Data as T;
         }

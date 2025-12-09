@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 
 namespace uchat
 {
@@ -18,7 +18,7 @@ namespace uchat
                 }
             }
 
-            var loginWindow = new Views.LoginWindow();
+            var loginWindow = new LoginWindow();
             loginWindow.Show();
         }
     }

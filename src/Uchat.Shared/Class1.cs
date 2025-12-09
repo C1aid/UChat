@@ -1,6 +1,0 @@
-﻿namespace Uchat.Shared;
-
-public class Class1
-{
-
-}

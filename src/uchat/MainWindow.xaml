@@ -1,257 +1,1545 @@
 ﻿<Window x:Class="uchat.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:uchat"
+        xmlns:converters="clr-namespace:uchat.Converters"
+        mc:Ignorable="d"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
         ResizeMode="CanResizeWithGrip"
-        Title="Uchat" Height="700" Width="1200"
-        WindowStartupLocation="CenterScreen">
+        Title="Uchat" 
+        Height="925" 
+        Width="1600"
+        MinHeight="600"
+        MinWidth="1000"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="{StaticResource AppFontFamily}"
+        Icon="/Assets/Images/logo.png">
 
-    <Grid Background="{DynamicResource WindowBackgroundBrush}" MouseLeftButtonDown="Header_MouseLeftButtonDown">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="0.3*"/>
-            <ColumnDefinition Width="0.7*"/>
-        </Grid.ColumnDefinitions>
+    <Window.Resources>
+        <!-- Converters -->
+        <local:MessageAlignmentConverter x:Key="MessageAlignmentConverter"/>
+        <local:UnreadCountToVisibilityConverter x:Key="UnreadCountToVisibilityConverter"/>
+        <converters:AvatarToBrushConverter x:Key="AvatarToBrushConverter"/>
+        <converters:TextMessageVisibilityConverter x:Key="TextMessageVisibilityConverter"/>
+        <converters:EditedMessageVisibilityConverter x:Key="EditedMessageVisibilityConverter"/>
+        
+        <!-- Global TextBlock Style -->
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+        </Style>
 
-        <Border Grid.Column="0" CornerRadius="20" Background="{DynamicResource LeftPanelBrush}" Margin="10">
-            <Grid>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="0.2*"/>
-                    <ColumnDefinition Width="0.8*"/>
-                </Grid.ColumnDefinitions>
-                
-                <Grid Grid.Column="0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="2*"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="5">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="5,5,0,0">
-                            
-                            <Button Style="{DynamicResource RoundButtonStyle}"
-                                    Background="#FF5F56"
-                                    Click="CloseButton_Click" 
-                                    >
-                                <Path Data="M192,64.34L179.66,52,128,103.66,76.34,52,64,64.34,115.66,116,64,167.66,76.34,180,128,128.34,179.66,180,192,167.66,140.34,116Z"
-                                    Fill="Black" Stretch="Uniform" Width="8" Height="8"/>
-                            </Button>
-                            
-                            <Button Style="{DynamicResource RoundButtonStyle}"
-                                    Background="#FFBD2E" 
-                                    Click="MinimizeButton_Click"
-                                    Margin="1,0,0,0"
-                                    >
-                                <Path Data="M216,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16H208A8,8,0,0,1,216,128Z"
-                                    Fill="Black" Stretch="Uniform" Width="8" Height="8"/>
-                            </Button>
-                            
-                            <Button Style="{DynamicResource RoundButtonStyle}"
-                                    Background="#27C93F" 
-                                    Click="MaximizeButton_Click"
-                                    Margin="1,0,0,0"
-                                    >
-                                <Path Data="M208,48H48A16,16,0,0,0,32,64V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V64A16,16,0,0,0,208,48ZM208,208H48V64H208Z"
-                                    Fill="Black" Stretch="Uniform" Width="8" Height="8"/>
-                            </Button>
-                        </StackPanel>
-                        
-                    </Grid>
-
-                    <Grid Grid.Row="1" Background="Transparent" Margin="0,0,0,0" >
-                        <StackPanel>
-                            <RadioButton Style="{DynamicResource ToggleIconStyle}" GroupName="SideMenu" IsChecked="True">
-                                <Path Data="M232.07,186.76a80,80,0,0,0-62.5-114.17A80,80,0,1,0,23.93,138.76l-7.27,24.71a16,16,0,0,0,19.87,19.87l24.71-7.27a80.39,80.39,0,0,0,25.18,7.35,80,80,0,0,0,108.34,40.65l24.71,7.27a16,16,0,0,0,19.87-19.86ZM62,159.5a8.28,8.28,0,0,0-2.26.32L32,168l8.17-27.76a8,8,0,0,0-.63-6,64,64,0,1,1,26.26,26.26A8,8,0,0,0,62,159.5Zm153.79,28.73L224,216l-27.76-8.17a8,8,0,0,0-6,.63,64.05,64.05,0,0,1-85.87-24.88A79.93,79.93,0,0,0,174.7,89.71a64,64,0,0,1,41.75,92.48A8,8,0,0,0,215.82,188.23Z"
-                                    Fill="{Binding RelativeSource={RelativeSource AncestorType=RadioButton}, Path=Foreground}" Stretch="Uniform" Width="39" Height="36"/>
-                            </RadioButton>
-                            <RadioButton Style="{DynamicResource ToggleIconStyle}" GroupName="SideMenu" Margin="0,10,0,0">
-                                <Path Data="M83.19,174.4a8,8,0,0,0,11.21-1.6,52,52,0,0,1,83.2,0,8,8,0,1,0,12.8-9.6A67.88,67.88,0,0,0,163,141.51a40,40,0,1,0-53.94,0A67.88,67.88,0,0,0,81.6,163.2,8,8,0,0,0,83.19,174.4ZM112,112a24,24,0,1,1,24,24A24,24,0,0,1,112,112Zm96-88H64A16,16,0,0,0,48,40V64H32a8,8,0,0,0,0,16H48v40H32a8,8,0,0,0,0,16H48v40H32a8,8,0,0,0,0,16H48v24a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V40A16,16,0,0,0,208,24Zm0,192H64V40H208Z"
-                                    Fill="{Binding RelativeSource={RelativeSource AncestorType=RadioButton}, Path=Foreground}" Stretch="Uniform" Width="39" Height="39"/>
-                            </RadioButton>
-                            <RadioButton Style="{DynamicResource ToggleIconStyle}" GroupName="SideMenu" Margin="0,10,0,0">
-                                <Path Data="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"
-                                    Fill="{Binding RelativeSource={RelativeSource AncestorType=RadioButton}, Path=Foreground}" Stretch="Uniform" Width="39" Height="39"/>
-                            </RadioButton>
-                        </StackPanel>
-                    </Grid>
+        <!-- Dynamic Icon Style -->
+        <Style x:Key="DynamicIconStyle" TargetType="Image">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        
+        <!-- Neumorphic Chat Card Style -->
+        <Style x:Key="NeumorphicChatCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource ChatListBrush}"/>
+            <Setter Property="CornerRadius" Value="32"/>
+            <Setter Property="Padding" Value="12,12"/>
+            <Setter Property="Margin" Value="8,6"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/> 
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ScrollThumb" TargetType="{x:Type Thumb}">
+    <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="{x:Type Thumb}">
+                <Border Background="#405A4A42" 
+                        CornerRadius="4" 
+                        BorderThickness="0"/>
+            </ControlTemplate>
+        </Setter.Value>
+    </Setter>
+</Style>
 
 
+<Style x:Key="MinimalScrollBar" TargetType="{x:Type ScrollBar}">
+    <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+    <Setter Property="Foreground" Value="#8C8C8C"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Width" Value="8"/> <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                <Grid x:Name="GridRoot" Width="8" Background="Transparent">
+                    <Track x:Name="PART_Track" IsDirectionReversed="true" Focusable="false">
+                        <Track.Thumb>
+                            <Thumb Style="{StaticResource ScrollThumb}"/>
+                        </Track.Thumb>
+                        <Track.IncreaseRepeatButton>
+                            <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="false" Background="Transparent" BorderThickness="0"/>
+                        </Track.IncreaseRepeatButton>
+                        <Track.DecreaseRepeatButton>
+                            <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="false" Background="Transparent" BorderThickness="0"/>
+                        </Track.DecreaseRepeatButton>
+                    </Track>
                 </Grid>
+            </ControlTemplate>
+        </Setter.Value>
+    </Setter>
+</Style>
 
-                <Grid Grid.Column="1">
-                    <Border CornerRadius="20" Background="{DynamicResource ChatListBrush}" >    
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0"
-                                    Text="Мои чаты" 
-                                    FontSize="16" 
-                                    FontWeight="Bold"
-                                    Margin="10" 
-                                    Foreground="#333333"/>
-
-                            <Grid Grid.Row="1" Margin="10,0,10,10">
-                                
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="0.8*"/>  <ColumnDefinition Width="0.2*"/>  </Grid.ColumnDefinitions>
-                                
-                                <TextBox x:Name="NewChatUsername" 
-                                        Grid.Column="0"
-                                        Height="30"
-                                        Padding="5"
-                                        VerticalContentAlignment="Center"
-                                        FontSize="14"
-                                        BorderBrush="#CCCCCC"
-                                        BorderThickness="1"/>
-                                
-                                <Button x:Name="NewChatButton"
-                                        Grid.Column="1"
-                                        Content="+"
-                                        Height="30"
-                                        Margin="5,0,0,0"
-                                        Background="#0078D4"
-                                        Foreground="White"
-                                        FontSize="14"
-                                        FontWeight="Bold"
-                                        BorderThickness="0"
-                                        Click="NewChatButton_Click"/>
-                                
-                            </Grid>
-
-                            <ListBox Grid.Row="2"
-                                    x:Name="ChatsList"
-                                    ItemsSource="{Binding ChatList, Mode=OneWay}"
-                                    SelectedItem="{Binding SelectedChat, Mode=TwoWay}"
-                                    BorderThickness="0"
-                                    Background="Transparent"
-                                    ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Padding="10,5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-
-                                                <Ellipse Grid.Column="0" 
-                                                        Width="40" 
-                                                        Height="40" 
-                                                        Margin="0,0,10,0"
-                                                        VerticalAlignment="Center">
-                                                    <Ellipse.Fill>
-                                                        <SolidColorBrush Color="#0078D4"/>
-                                                    </Ellipse.Fill>
-                                                </Ellipse>
-
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding DisplayName}" 
-                                                            FontSize="14" 
-                                                            FontWeight="Bold"
-                                                            Foreground="#333333"/>
-                                                    <TextBlock Text="{Binding LastMessage}"
-                                                            FontSize="11"
-                                                            Foreground="#666666"
-                                                            TextTrimming="CharacterEllipsis"
-                                                            MaxWidth="150"/>
-                                                </StackPanel>
-
-                                                <TextBlock Grid.Column="2" 
-                                                        Text="{Binding LastMessageTime, StringFormat='HH:mm'}" 
-                                                        FontSize="10"
-                                                        Foreground="#999999"
-                                                        VerticalAlignment="Top"
-                                                        Margin="5,0,0,0"/>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                        <Setter Property="Padding" Value="0"/>
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                            </ListBox>
-                        </Grid>
-                    </Border>
-                </Grid>
-            </Grid>
-            </Grid>
-        </Border>
-
-        <Grid Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <Border Grid.Row="0" CornerRadius="5" Margin="5,10,10,10" Background="White">
-                <ListBox x:Name="MessagesList" 
-                         Background="Transparent"
-                         BorderThickness="0"
-                         ItemsSource="{Binding ChatMessages, Mode=OneWay}"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="5,2">
-                                <TextBlock FontSize="12" Foreground="Gray">
-                                    <Run Text="["/>
-                                    <Run Text="{Binding SentAt, StringFormat=HH:mm}"/>
-                                    <Run Text="] "/>
-                                    <Run Text="{Binding Username}" FontWeight="Bold"/>
-                                </TextBlock>
-                                <TextBlock Text="{Binding Content}" 
-                                           FontSize="14" 
-                                           Margin="20,0,0,0"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Border>
-
-            <Border Grid.Row="1" Background="{DynamicResource MessageInputBrush}" Padding="10" CornerRadius="25" Margin="10">
-                <Grid>
+<Style x:Key="ModernScrollViewer" TargetType="{x:Type ScrollViewer}">
+    <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                <Grid x:Name="Grid" Background="{TemplateBinding Background}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" 
+                                            CanContentScroll="{TemplateBinding CanContentScroll}" 
+                                            Grid.Column="0" Grid.Row="0" 
+                                            Margin="{TemplateBinding Padding}" 
+                                            Content="{TemplateBinding Content}" 
+                                            ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                    
+                    <ScrollBar x:Name="PART_VerticalScrollBar" 
+                               Style="{StaticResource MinimalScrollBar}"
+                               AutomationProperties.AutomationId="VerticalScrollBar" 
+                               Cursor="Arrow" 
+                               Grid.Column="1" 
+                               Maximum="{TemplateBinding ScrollableHeight}" 
+                               Minimum="0" 
+                               Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" 
+                               Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" 
+                               ViewportSize="{TemplateBinding ViewportHeight}"/>
+                </Grid>
+            </ControlTemplate>
+        </Setter.Value>
+    </Setter>
+</Style>
 
-                    <TextBox x:Name="MessageInput" 
-                             Grid.Column="0"
-                             Height="35"
-                             Margin="0,0,10,0"
-                             Padding="10,0"
-                             VerticalContentAlignment="Center"
-                             FontSize="14"
-                             KeyDown="MessageInput_KeyDown"
-                             BorderBrush="#CCCCCC"
-                             BorderThickness="1"/>
+        <!-- Neumorphic Message Bubble - Received (Left) - Other Users -->
+        <Style x:Key="ReceivedMessageBubbleStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource RecieveBubbleBrush}"/>
+            <Setter Property="CornerRadius" Value="18,18,18,4"/>
+            <Setter Property="Opacity" Value="0.8"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="MaxWidth" Value="400"/>
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="Margin" Value="12,4,60,4"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/> 
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-                    <Button x:Name="SendButton"
-                            Grid.Column="1"
-                            Content="Отправить"
-                            Width="100"
-                            Height="35"
-                            Background="#0078D4"
-                            Foreground="White"
-                            FontSize="14"
-                            FontWeight="Bold"
-                            BorderThickness="0"
-                            Click="SendButton_Click"/>
+        <!-- Neumorphic Message Bubble - Sent (Right) - Current User -->
+        <Style x:Key="SentMessageBubbleStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SendBubbleBrush}"/>
+            <Setter Property="CornerRadius" Value="18,18,4,18"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="MaxWidth" Value="400"/>
+            <Setter Property="Opacity" Value="0.8"/>
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="Margin" Value="60,4,12,4"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/> 
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Neumorphic Search Input Style -->
+        <Style x:Key="NeumorphicSearchStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="Padding" Value="15,0,15,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Background" Value="{DynamicResource ChatListBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="32"
+                                BorderThickness="1.5">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#80FFFFFF" Offset="0"/>
+                                    <GradientStop Color="#20FFFFFF" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
+                            </Border.Effect>
+                            <Grid>
+                                <Path Data="M21,21l-5.39-5.39a7.5,7.5,0,1,0-1.06,1.06L19.93,22.06,21,21Zm-11-4.5a5.5,5.5,0,1,1,5.5-5.5A5.51,5.51,0,0,1,10,16.5Z"
+                                      Fill="#999999"
+                                      Stretch="Uniform"
+                                      Width="18"
+                                      Height="18"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Left"
+                                      Margin="15,0,0,0"/>
+                                <ScrollViewer x:Name="PART_ContentHost" 
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              Foreground="{TemplateBinding Foreground}"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Neumorphic Input Style -->
+        <Style x:Key="NeumorphicInputStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="55"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/> 
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" 
+                                     Margin="{TemplateBinding Padding}"
+                                     VerticalAlignment="Center"
+                                     Foreground="{TemplateBinding Foreground}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Simple input style for message input panel -->
+        <Style x:Key="SimpleInputStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="55"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/> 
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" 
+                                     Margin="{TemplateBinding Padding}"
+                                     VerticalAlignment="Center"
+                                     Foreground="{TemplateBinding Foreground}"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Circular Add Button Style -->
+        <Style x:Key="CircularAddButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="45"/>
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="22.5"
+                                BorderThickness="0">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="6" ShadowDepth="1" Color="#40000000" Opacity="0.15" Direction="225"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Icon Button Style for message input panel -->
+        <Style x:Key="IconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="32"
+                                BorderThickness="1.5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#20000000"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#30000000"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Neumorphic Send Button Style -->
+        <Style x:Key="NeumorphicSendButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="130"/>
+            <Setter Property="Height" Value="55"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="32"
+                                BorderThickness="1.5">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#80FFFFFF" Offset="0"/>
+                                    <GradientStop Color="#20FFFFFF" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="3" Color="#40000000" Opacity="0.2" Direction="225"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="6" ShadowDepth="1" Color="#40000000" Opacity="0.15" Direction="225"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{DynamicResource WindowBackgroundBrush}" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition MinWidth="300" Width="380"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition x:Name="RightPanelColumn" MinWidth="250" Width="320"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Panel with Layered Neumorphic Design -->
+        <Grid Grid.Column="0" Margin="12,12,6,12">
+            <!-- Darker Sidebar (Left Layer) -->
+            <Border Background="{DynamicResource LeftPanelBrush}"
+                    CornerRadius="32"
+                    Margin="0,0,0,0"
+                    BorderThickness="1.5">
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#80FFFFFF" Offset="0"/>
+                        <GradientStop Color="#20FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="#40000000" Opacity="0.18"/>
+                </Border.Effect>
+                
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Window control buttons -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10,15,0,0">
+                        <Button x:Name="CloseButton"
+                                Width="12"
+                                Height="12"
+                                Background="#FF5F56"
+                                Click="CloseButton_Click"
+                                BorderThickness="0"
+                                Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Ellipse Fill="{TemplateBinding Background}"/>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <Button x:Name="MinimizeButton"
+                                Width="12"
+                                Height="12"
+                                Background="#FFBD2E" 
+                                Click="MinimizeButton_Click"
+                                Margin="8,0,0,0"
+                                BorderThickness="0"
+                                Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Ellipse Fill="{TemplateBinding Background}"/>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <Button x:Name="MaximizeButton"
+                                Width="12"
+                                Height="12"
+                                Background="#27C93F" 
+                                Click="MaximizeButton_Click"
+                                Margin="8,0,0,0"
+                                BorderThickness="0"
+                                Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Ellipse Fill="{TemplateBinding Background}"/>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1"
+            VerticalAlignment="Top"
+            HorizontalAlignment="Left"
+            Margin="0,0,0,0">
+    <Viewbox Width="100"
+         Height="100"
+         Stretch="Uniform"
+         Margin="0,0,0,0">
+    <Canvas Width="1024" Height="1024"
+            RenderTransformOrigin="0,0">
+        <Canvas.RenderTransform>
+            <TranslateTransform X="-150" Y="0"/>
+        </Canvas.RenderTransform>
+                            <Path Data="M419.012 378.14C483.831 442.556 549.874 505.764 613.469 571.389C619.167 577.268 615.398 591.128 607.147 592.814C602.23 593.818 595.788 595.608 592.106 592.199C527.522 532.396 468.387 466.943 405.122 405.746C402.712 403.414 399.046 402.464 395.702 402.216C386.056 401.499 380.677 405.09 375.12 412.673C368.31 421.969 361.772 431.561 356.562 441.84C349.717 455.346 347.112 470.862 345.639 485.932C341.936 523.829 343.773 557.466 364.481 589.669C364.481 557.539 361.835 525.299 364.481 493.278C365.297 483.399 378.396 480.994 385.124 480.994C390.626 480.994 398.43 489.128 398.648 493.278C401.064 539.362 395.757 585.663 398.648 631.719C398.939 636.353 404.207 639.357 407.987 642.054C446.762 669.72 484.497 677.8 531.968 671.237C544.773 669.466 556.534 662.849 569.27 660.634C582.071 658.407 587.925 686.72 569.27 692.823C443.228 734.06 316.225 653.573 309.588 519.207C307.275 472.374 319.999 435.957 345.639 396.834C357.914 378.105 372.392 371.817 392.861 373.314C396.8 373.602 400.962 374.178 405.372 375.01C409.674 375.821 414.212 376.874 419.012 378.14Z"
+                                Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                            <Path Data="M451.694 637.968C452.152 636.979 452.389 635.902 452.389 634.812L452.389 554.024C452.389 552.938 452.153 551.864 451.698 550.877L450.178 547.582C449.713 546.574 449.031 545.682 448.18 544.969L446.215 543.323C445.751 542.933 445.241 542.602 444.696 542.335L442.819 541.415C442.046 541.036 441.215 540.793 440.36 540.696L437.76 540.401C437.219 540.34 436.673 540.337 436.132 540.394L433.203 540.699C432.292 540.794 431.406 541.055 430.589 541.469L428.978 542.284C428.385 542.585 427.835 542.962 427.341 543.407L426.05 544.571L425.23 545.311C424.685 545.802 424.215 546.37 423.834 546.998L423.834 546.998C423.13 548.16 422.754 549.491 422.747 550.85L422.263 636.761C422.256 637.98 422.546 639.183 423.107 640.265L423.959 641.907C424.257 642.481 424.627 643.014 425.061 643.492L427.557 646.246C427.908 646.633 428.298 646.983 428.722 647.289L429.854 648.108C431.135 649.034 432.676 649.533 434.258 649.533L439.283 649.533C440.825 649.533 442.329 649.059 443.592 648.175L444.938 647.233C445.322 646.964 445.681 646.659 446.009 646.323L448.573 643.693C449.168 643.083 449.655 642.376 450.013 641.602L451.694 637.968Z"
+                                Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                            <Path Data="M571.865 481.136C572.118 480.245 572.246 479.324 572.246 478.398L572.246 384.827C572.246 384.116 572.171 383.407 572.021 382.712L571.802 381.699C571.245 379.116 569.691 376.857 567.477 375.413L566.678 374.892C566.034 374.472 565.343 374.127 564.62 373.865L561.657 372.79C560.938 372.529 560.191 372.351 559.432 372.26L557.415 372.018C556.628 371.923 555.832 371.922 555.045 372.015L553.02 372.254C552.215 372.349 551.423 372.541 550.664 372.827L548.608 373.6C547.45 374.036 546.382 374.682 545.459 375.506L544.072 376.744C543.387 377.356 542.789 378.06 542.295 378.834L542.295 378.834C541.268 380.445 540.723 382.316 540.723 384.226L540.723 477.423C540.723 478.982 541.086 480.519 541.784 481.913L542.31 482.964C542.793 483.93 543.429 484.811 544.193 485.573L546.015 487.392C546.573 487.95 547.195 488.439 547.868 488.851L547.893 488.866C549.254 489.698 550.794 490.194 552.385 490.312L554.125 490.441L556.291 490.601C556.797 490.638 557.304 490.638 557.81 490.598L559.74 490.448L562.029 490.27C563.201 490.179 564.348 489.882 565.418 489.394L565.729 489.252C567.197 488.581 568.482 487.567 569.474 486.294L569.729 485.966C570.524 484.946 571.114 483.783 571.467 482.539L571.865 481.136Z"
+                                Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                            <Path Data="M403.515 339.696C394.889 356.262 405.117 370.031 424.833 363.706C427.052 362.994 429.558 361.706 431.702 360.793C442.542 356.178 472.241 349.816 483.503 347.024C485.116 346.624 467.015 346.1 469.532 346.1C478.329 346.1 489.119 341.461 499.128 342.173C516.921 343.439 530.218 343.639 551.734 352.926C563.844 358.153 575.926 363.159 584.55 367.135C594.83 371.875 594.83 375.033 594.83 382.296C594.83 432.683 591.219 483.097 592.886 533.455C593.477 551.298 625.888 550.178 626.714 537.139C629.189 498.058 626.714 458.82 626.714 419.66C654.869 477.544 666.034 541.302 626.714 598.307C618.788 609.797 608.636 627.515 594.83 625.454C591.432 624.946 588.003 623.37 585.552 620.961C523.204 559.667 463.099 496.121 400.837 434.739C397.082 431.037 385.046 433.089 382.629 434.739C376.557 438.883 372.454 451.198 378.422 457.563C439.837 523.066 503.339 586.607 567.392 649.533C579.178 661.113 607.395 658.874 619.897 652.829C642.544 641.88 658.59 619.787 668.461 595.837C670.606 590.634 672.832 585.04 674.941 579.548C677.369 573.221 679.641 567.029 681.45 561.726C692.464 529.44 685.853 489.456 677.991 457.563C648.77 339.035 520.449 278.494 403.515 339.696Z"
+                                Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                            <Path Data="M456.119 349.308C474.053 344.85 493.52 334.042 512 334.042C531.442 334.042 550.845 339.893 568.772 347.418C582.435 353.153 595.551 361.733 605.054 373.102C608.843 377.633 605.054 384.914 605.054 390.821C578.929 372.519 549.778 348.959 515.942 347.418C498.836 346.639 485.005 347.246 467.878 347.39C465.753 347.408 458.242 349.308 456.119 349.308Z"
+                                Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                            <Path Data="M417.716 378.072C400.536 360.992 376.691 370.156 359.111 381.476C388.414 379.774 388.414 379.774 417.716 378.072Z"
+                                Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                            </Canvas>
+                        </Viewbox>
+                        </StackPanel>
+
+
+                    <!-- Side menu buttons -->
+                    <StackPanel Grid.Row="1" 
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Margin="10,0,0,0">
+
+                        <RadioButton x:Name="ChatsRadioButton"
+                                     Style="{DynamicResource ToggleIconStyle}" 
+                                     GroupName="SideMenu" 
+                                     IsChecked="True"
+                                     Click="ChatsRadioButton_Click"
+                                     Margin="0,0,0,18">
+                            <Viewbox Width="44" Height="40" Stretch="Uniform">
+                                <Canvas Width="256" Height="256">
+                                    <Path Data="M232.07,186.76a80,80,0,0,0-62.5-114.17A80,80,0,1,0,23.93,138.76l-7.27,24.71a16,16,0,0,0,19.87,19.87l24.71-7.27a80.39,80.39,0,0,0,25.18,7.35,80,80,0,0,0,108.34,40.65l24.71,7.27a16,16,0,0,0,19.87-19.86ZM62,159.5a8.28,8.28,0,0,0-2.26.32L32,168l8.17-27.76a8,8,0,0,0-.63-6,64,64,0,1,1,26.26,26.26A8,8,0,0,0,62,159.5Zm153.79,28.73L224,216l-27.76-8.17a8,8,0,0,0-6,.63,64.05,64.05,0,0,1-85.87-24.88A79.93,79.93,0,0,0,174.7,89.71a64,64,0,0,1,41.75,92.48A8,8,0,0,0,215.82,188.23Z" 
+                                          Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                </Canvas>
+                            </Viewbox>
+                        </RadioButton>
+
+                        <RadioButton x:Name="ProfileRadioButton"
+                                     Style="{DynamicResource ToggleIconStyle}" 
+                                     GroupName="SideMenu" 
+                                     Margin="0,0,0,18"
+                                     Click="ProfileRadioButton_Click">
+                            <Viewbox Width="44" Height="44" Stretch="Uniform">
+                                <Canvas Width="256" Height="256">
+                                    <Path Data="M83.19,174.4a8,8,0,0,0,11.21-1.6,52,52,0,0,1,83.2,0,8,8,0,1,0,12.8-9.6A67.88,67.88,0,0,0,163,141.51a40,40,0,1,0-53.94,0A67.88,67.88,0,0,0,81.6,163.2,8,8,0,0,0,83.19,174.4ZM112,112a24,24,0,1,1,24,24A24,24,0,0,1,112,112Zm96-88H64A16,16,0,0,0,48,40V64H32a8,8,0,0,0,0,16H48v40H32a8,8,0,0,0,0,16H48v40H32a8,8,0,0,0,0,16H48v24a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V40A16,16,0,0,0,208,24Zm0,192H64V40H208Z" 
+                                          Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                </Canvas>
+                            </Viewbox>
+                        </RadioButton>
+
+                        <RadioButton x:Name="SettingsRadioButton"
+                                     Style="{DynamicResource ToggleIconStyle}" 
+                                     GroupName="SideMenu" 
+                                     Click="SettingsRadioButton_Click">
+                            <Viewbox Width="44" Height="44" Stretch="Uniform">
+                                <Canvas Width="256" Height="256">
+                                    <Path Data="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z" 
+                                          Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                </Canvas>
+                            </Viewbox>
+                        </RadioButton>
+                    </StackPanel>
                 </Grid>
             </Border>
+
+            <!-- Lighter Chat Panel (Right Layer) -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource ChatListBrush}"
+                    CornerRadius="32"
+                    Margin="75,0,0,0"
+                    ClipToBounds="True"
+                    BorderThickness="1.5">
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#80FFFFFF" Offset="0"/>
+                        <GradientStop Color="#20FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="#40000000" Opacity="0.10"/>
+                </Border.Effect>
+                
+                <Grid x:Name="ChatsPage" Visibility="Visible">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                        <!-- Header with Add Button -->
+                        <Border Grid.Row="0" 
+                                Background="Transparent" 
+                                Padding="20,25,20,15">
+                            <Grid>
+                                <TextBlock Text="Chats" 
+                                           FontSize="32" 
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                                <Button x:Name="NewChatButton"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Click="NewChatButton_Click"
+                                        ToolTip="Add new chat">
+                                    <Viewbox Width="24" Height="24" Stretch="Uniform">
+                                        <Canvas Width="256" Height="256">
+                                            <Path Data="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32A8,8,0,0,1,176,128Z" 
+                                                  Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- Search Bar with Icon on Right -->
+                        <Border Grid.Row="1" 
+                                x:Name="SearchChatBoxBorder"
+                                Background="Transparent" 
+                                Padding="20,0,20,15"
+                                Visibility="Collapsed"
+                                BorderThickness="1.5">
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#80FFFFFF" Offset="0"/>
+                                    <GradientStop Color="#20FFFFFF" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="20" ShadowDepth="5" Color="#40000000" Opacity="0.3"/>
+                            </Border.Effect>
+                            <Grid>
+                                <TextBox x:Name="SearchChatBox"
+                                         Height="50"
+                                         Padding="15,0,45,0"
+                                         VerticalContentAlignment="Center"
+                                         FontSize="15"
+                                         FontWeight="Medium"
+                                         Background="{DynamicResource MessageInputBrush}"
+                                         Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                         BorderThickness="0"
+                                         Text="Search">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="TextBox">
+                                                        <Border x:Name="border" 
+                                                                Background="{TemplateBinding Background}" 
+                                                                CornerRadius="18"
+                                                                BorderThickness="1.5">
+                                                            <Border.BorderBrush>
+                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                    <GradientStop Color="#80FFFFFF" Offset="0"/>
+                                                                    <GradientStop Color="#20FFFFFF" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Border.BorderBrush>
+                                                            <Border.Effect>
+                                                                <DropShadowEffect BlurRadius="15" ShadowDepth="4" Color="#FFFFFF" Opacity="0.8" Direction="225"/>
+                                                            </Border.Effect>
+                                                            <ScrollViewer x:Name="PART_ContentHost" 
+                                                                         Margin="{TemplateBinding Padding}"
+                                                                         VerticalAlignment="Center"
+                                                                         Foreground="{TemplateBinding Foreground}"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsFocused" Value="True">
+                                                                <Setter TargetName="border" Property="Effect">
+                                                                    <Setter.Value>
+                                                                        <DropShadowEffect BlurRadius="20" ShadowDepth="6" Color="#8B7355" Opacity="0.4" Direction="225"/>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                                
+                                <!-- Search Icon on Right -->
+                                <Path Data="M21,21l-5.39-5.39a7.5,7.5,0,1,0-1.06,1.06L19.93,22.06,21,21Zm-11-4.5a5.5,5.5,0,1,1,5.5-5.5A5.51,5.51,0,0,1,10,16.5Z"
+                                      Fill="{DynamicResource AccentBrush}"
+                                      Stretch="Uniform"
+                                      Width="20"
+                                      Height="20"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,15,0"
+                                      Opacity="0.7">
+                                    <Path.Effect>
+                                        <DropShadowEffect BlurRadius="5" ShadowDepth="2" Color="#40000000" Opacity="0.2"/>
+                                    </Path.Effect>
+                                </Path>
+                            </Grid>
+                        </Border>
+
+                        <!-- Add Chat Input (Hidden by default) -->
+                        <Border Grid.Row="2" 
+                                Background="Transparent" 
+                                Padding="20,0,20,15"
+                                Visibility="Collapsed"
+                                x:Name="AddChatPanel">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="NewChatUsername" 
+                                         Grid.Column="0"
+                                         Style="{StaticResource NeumorphicInputStyle}"
+                                         Height="50"
+                                         Margin="0,0,10,0"/>
+
+                                <Button Content="Add"
+                                        Grid.Column="1"
+                                        Style="{StaticResource NeumorphicSendButtonStyle}"
+                                        Width="80"
+                                        Click="NewChatButton_Click"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Chat List -->
+                        <ListBox Grid.Row="3"
+         x:Name="ChatsList"
+         ItemsSource="{Binding ChatList}"
+         BorderThickness="0"
+         Background="Transparent"
+         ScrollViewer.VerticalScrollBarVisibility="Auto"
+         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+         Padding="10,0,10,10">
+
+    <ListBox.Resources>
+        <Style x:Key="ScrollThumb" TargetType="{x:Type Thumb}">
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Border Background="#605A4A42" CornerRadius="2" BorderThickness="0"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type ScrollBar}">
+            <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width" Value="4"/> <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="GridRoot" Width="4" Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true" Focusable="false">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ScrollThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ListBox.Resources>
+
+    <ListBox.ItemTemplate>
+        <DataTemplate>
+            <Border Style="{StaticResource NeumorphicChatCardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0" Width="50" Height="50" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <Ellipse Width="50" Height="50" VerticalAlignment="Center">
+                            <Ellipse.Fill>
+                                <Binding Path="Avatar" Converter="{StaticResource AvatarToBrushConverter}">
+                                    <Binding.FallbackValue>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="{DynamicResource AccentColor}" Offset="0"/>
+                                            <GradientStop Color="#A68B6B" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Binding.FallbackValue>
+                                </Binding>
+                            </Ellipse.Fill>
+                            <Ellipse.Effect>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="3" Color="#FFFFFF" Opacity="0.6" Direction="225"/>
+                            </Ellipse.Effect>
+                            <Ellipse.Stroke>
+                                <SolidColorBrush Color="#FFFFFF" Opacity="0.3"/>
+                            </Ellipse.Stroke>
+                            <Ellipse.StrokeThickness>2</Ellipse.StrokeThickness>
+                        </Ellipse>
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding DisplayName}" 
+                                       FontSize="16" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                       Margin="0,0,0,4"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                        <TextBlock Text="{Binding LastMessage}"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxHeight="20"
+                                   LineHeight="18"
+                                   Opacity="0.85"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Top" Margin="6,0,0,0">
+                        <TextBlock Text="{Binding LastMessageTime, StringFormat='HH:mm'}" 
+                                   FontSize="11"
+                                   Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                   Margin="0,0,0,4"
+                                   Opacity="0.7"/>
+                        
+                        <Border Visibility="{Binding UnreadCount, Converter={StaticResource UnreadCountToVisibilityConverter}}"
+                                Background="{DynamicResource AccentBrush}"
+                                CornerRadius="10"
+                                Padding="6,3"
+                                HorizontalAlignment="Right"
+                                MinWidth="20">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Color="#40000000" Opacity="0.2"/>
+                            </Border.Effect>
+                            <TextBlock Text="{Binding UnreadCount}"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </ListBox.ItemTemplate>
+                            
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Margin" Value="0,0,0,0"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="ItemBorder"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderThickness="0"
+                                                        CornerRadius="20"
+                                                        Padding="0">
+                                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="ItemBorder" Property="Background">
+                                                            <Setter.Value>
+                                                                <SolidColorBrush Color="#20000000" Opacity="0.05"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="ItemBorder" Property="Background">
+                                                            <Setter.Value>
+                                                                <SolidColorBrush Color="{DynamicResource AccentColor}" Opacity="0.15"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                    </Grid>
+            </Border>
         </Grid>
+
+        <!-- Main content area -->
+        <Grid Grid.Column="1" x:Name="MainContentGrid" Margin="6,12,0,12">
+            <!-- Messages area -->
+            <Grid x:Name="MessagesView" Visibility="Visible">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Chat Header -->
+                <Border Grid.Row="0" 
+                        x:Name="ChatHeaderPanel"
+                        Background="Transparent" 
+                        CornerRadius="25"
+                        Padding="25,20"
+                        Margin="0,0,0,0"
+                        Visibility="Collapsed"
+                        BorderThickness="1.5">
+                    
+                    <Grid>
+                        <!-- Bottom separator line with gradient -->
+                        <Border VerticalAlignment="Bottom"
+                                Margin="0,0,0,0"
+                                Height="1"
+                                Opacity="0.3">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="Transparent" Offset="0"/>
+                                    <GradientStop Color="Transparent" Offset="0.5"/>
+                                    <GradientStop Color="Transparent" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Avatar -->
+                            <Ellipse Grid.Column="0" 
+                                     x:Name="ChatHeaderAvatar"
+                                     Width="100" 
+                                     Height="100" 
+                                     Margin="0,0,15,0"
+                                     VerticalAlignment="Center">
+                                <Ellipse.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="{DynamicResource AccentColor}" Offset="0"/>
+                                        <GradientStop Color="#A68B6B" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Ellipse.Fill>
+                                <Ellipse.Effect>
+                                    <DropShadowEffect BlurRadius="6" ShadowDepth="2" Color="#FFFFFF" Opacity="0.5" Direction="225"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+
+                            <!-- Chat Name -->
+                            <TextBlock Grid.Column="1" 
+                                       x:Name="ChatHeaderName"
+                                       Text="Select a chat" 
+                                       FontSize="36" 
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,15,0"/>
+
+                            <!-- Search Button -->
+                            <Button Grid.Column="2"
+                                    x:Name="SearchHeaderButton"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Margin="0,0,10,0"
+                                    VerticalAlignment="Center"
+                                    Click="SearchHeaderButton_Click"
+                                    ToolTip="Search">
+                                <Viewbox Width="37" Height="37" Stretch="Uniform">
+                                    <Canvas Width="256" Height="256">
+                                        <Path Data="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" 
+                                              Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+
+                            <!-- Call Button -->
+                            <Button Grid.Column="3"
+                                    x:Name="CallHeaderButton"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Margin="0,0,10,0"
+                                    VerticalAlignment="Center"
+                                    Click="CallHeaderButton_Click"
+                                    ToolTip="Call">
+                                <Viewbox Width="37" Height="37" Stretch="Uniform">
+                                    <Canvas Width="256" Height="256">
+                                        <Path Data="M222.37,158.46l-47.11-21.11-.13-.06a16,16,0,0,0-15.17,1.4,8.12,8.12,0,0,0-.75.56L134.87,160c-15.42-7.49-31.34-23.29-38.83-38.51l20.78-24.71c.2-.25.39-.5.57-.77a16,16,0,0,0,1.32-15.06l0-.12L97.54,33.64a16,16,0,0,0-16.62-9.52A56.26,56.26,0,0,0,32,80c0,79.4,64.6,144,144,144a56.26,56.26,0,0,0,55.88-48.92A16,16,0,0,0,222.37,158.46ZM176,208A128.14,128.14,0,0,1,48,80,40.2,40.2,0,0,1,82.87,40a.61.61,0,0,0,0,.12l21,47L83.2,111.86a6.13,6.13,0,0,0-.57.77,16,16,0,0,0-1,15.7c9.06,18.53,27.73,37.06,46.46,46.11a16,16,0,0,0,15.75-1.14,8.44,8.44,0,0,0,.74-.56L168.89,152l47,21.05h0s.08,0,.11,0A40.21,40.21,0,0,1,176,208Z" 
+                                              Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Messages List -->
+                <Border Grid.Row="1" 
+                        Background="{DynamicResource MessageListBrush}" 
+                        Opacity="0.9"
+                        CornerRadius="32"
+                        ClipToBounds="True"
+                        Margin="0,5"
+                        BorderThickness="1.5">
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#80FFFFFF" Offset="0"/>
+                            <GradientStop Color="#20FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                    <ListBox x:Name="MessagesList" 
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ItemsSource="{Binding ChatMessages}"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             Padding="25,25,25,25">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="✏️ Edit" 
+                                                      Click="EditMessageMenuItem_Click"
+                                                      Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=ShowEditMenu}"/>
+                                            <MenuItem Header="🗑️ Delete" 
+                                                      Click="DeleteMessageMenuItem_Click"
+                                                      Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=ShowEditMenu}"/>
+                                        </ContextMenu>
+                                    </Grid.ContextMenu>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Received Message (Left) - Other Users -->
+                                    <Border Grid.Column="0"
+                                            Style="{StaticResource ReceivedMessageBubbleStyle}"
+                                            HorizontalAlignment="Left"
+                                            Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=Left}">
+                                        <StackPanel>
+                                            <!-- Username and Time for received messages -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                <TextBlock Text="{Binding Username}" 
+                                                           FontWeight="regular"
+                                                           FontSize="16"
+                                                           Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                           Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource RecieveTimeBrush}"
+                                                           Opacity="0.7"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            
+                                            <!-- Text Message -->
+                                            <StackPanel Orientation="Horizontal" 
+                                                        Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}">
+                                                <TextBlock Text="{Binding Content}"
+                                                           FontFamily="{StaticResource AppFontFamily}"
+                                                           FontSize="16"
+                                                           FontWeight="Medium"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource ReceivedMessageTextBrush}"/>
+                                                <TextBlock Text=" (edited)" 
+                                                           FontSize="11"
+                                                           Foreground="#999999"
+                                                           Opacity="0.7"
+                                                           Margin="4,0,0,0"
+                                                           VerticalAlignment="Bottom"
+                                                           Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Sent Message (Right) - Current User -->
+                                    <Border Grid.Column="1"
+                                            Style="{StaticResource SentMessageBubbleStyle}"
+                                            HorizontalAlignment="Right"
+                                            Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=Right}">
+                                        <StackPanel>
+                                            <!-- Text Message -->
+                                            <StackPanel Orientation="Horizontal" 
+                                                        Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}">
+                                                <TextBlock Text="{Binding Content}"
+                                                           FontFamily="{StaticResource AppFontFamily}"
+                                                           FontSize="15"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{DynamicResource SentMessageTextBrush}"/>
+                                                <TextBlock Text=" (edited)" 
+                                                           FontSize="11"
+                                                           Foreground="White"
+                                                           Opacity="0.7"
+                                                           Margin="4,0,0,0"
+                                                           VerticalAlignment="Bottom"
+                                                           Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
+                                            </StackPanel>
+                                            
+                                            <!-- Time for sent messages (bottom right) -->
+                                            <StackPanel Orientation="Horizontal" 
+                                                        HorizontalAlignment="Right" 
+                                                        Margin="0,4,0,0">
+                                                <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource SendTimeBrush}"
+                                                           Opacity="0.7"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                </Border>
+
+                <!-- Message Input -->
+                <Border Grid.Row="2" 
+                        x:Name="MessageInputPanel"
+                        Background="{DynamicResource MessageInputBrush}" 
+                        CornerRadius="32"
+                        Height="75"
+                        Padding="20,0"
+                        Margin="0,0,0,0"
+                        Visibility="Collapsed"
+                        BorderThickness="1.5">
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#80FFFFFF" Offset="0"/>
+                            <GradientStop Color="#20FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="25" ShadowDepth="6" Color="#40000000" Opacity="0.2" Direction="90"/>
+                    </Border.Effect>
+                    
+                    <Grid>
+                        <!-- Top separator line with gradient -->
+                        <Border VerticalAlignment="Top"
+                                Margin="0,0,0,0"
+                                Height="1"
+                                Opacity="0.3">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="Transparent" Offset="0"/>
+                                    <GradientStop Color="Transparent" Offset="0.5"/>
+                                    <GradientStop Color="Transparent" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Emoji button (moved to left) -->
+                            <Button x:Name="EmojiButton"
+                                    Grid.Column="0"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Margin="0,0,15,0"
+                                    VerticalAlignment="Center"
+                                    Click="EmojiButton_Click"
+                                    ToolTip="Emoji">
+                                <Viewbox Width="35" Height="35" Stretch="Uniform">
+                                    <Canvas Width="256" Height="256">
+                                        <Path Data="M174.92,156c-10.29,17.79-27.39,28-46.92,28s-36.63-10.2-46.93-28a8,8,0,1,1,13.86-8c7.46,12.91,19.2,20,33.07,20s25.61-7.1,33.08-20a8,8,0,1,1,13.84,8ZM232,128a104.35,104.35,0,0,1-4.56,30.56,8,8,0,0,1-2,3.31l-63.57,63.57a7.9,7.9,0,0,1-3.3,2A104,104,0,1,1,232,128Zm-16,0a87.89,87.89,0,1,0-64,84.69L212.69,152A88.05,88.05,0,0,0,216,128ZM92,120a12,12,0,1,0-12-12A12,12,0,0,0,92,120Zm72-24a12,12,0,1,0,12,12A12,12,0,0,0,164,96Z" 
+                                              Fill="{DynamicResource ForegroundSecondaryBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+
+                            <!-- Message input (center) -->
+                            <Grid Grid.Column="1" Margin="0,0,15,0" VerticalAlignment="Center">
+                                <TextBox x:Name="MessageInput" 
+                                         KeyDown="MessageInput_KeyDown"
+                                         GotFocus="MessageInput_GotFocus"
+                                         LostFocus="MessageInput_LostFocus"
+                                         TextChanged="MessageInput_TextChanged"
+                                         VerticalContentAlignment="Center"
+                                         Height="55"
+                                         Padding="20,0"
+                                         FontFamily="{StaticResource AppFontFamily}"
+                                         FontSize="15"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         VerticalScrollBarVisibility="Disabled"
+                                         Text="Send a message...">
+                                </TextBox>
+                            </Grid>
+
+                            <!-- Send button (right) -->
+                            <Button x:Name="SendButton"
+                                    Grid.Column="2"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Margin="0,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Click="SendButton_Click"
+                                    ToolTip="Send message">
+                                <Viewbox Width="30" Height="35" Stretch="Uniform">
+                                    <Canvas Width="256" Height="256">
+                                        <Path Data="M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z" 
+                                              Fill="{DynamicResource ForegroundSecondaryBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Profile view (Under construction) -->
+            <Grid x:Name="ProfileView" 
+                  Visibility="Collapsed"
+                  HorizontalAlignment="Stretch">
+                <Border Background="{DynamicResource MessageInputBrush}" 
+                        CornerRadius="25"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        BorderThickness="1.5">
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#80FFFFFF" Offset="0"/>
+                            <GradientStop Color="#20FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="#40000000" Opacity="0.1"/>
+                    </Border.Effect>
+                    
+                    <StackPanel VerticalAlignment="Center" 
+                              HorizontalAlignment="Center">
+                        <TextBlock Text="Under construction" 
+                                 FontSize="42" 
+                                 FontWeight="SemiBold"
+                                 Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                 HorizontalAlignment="Center"
+                                 Margin="0,0,0,50">
+                            <TextBlock.Effect>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Color="#F5F5DC" Opacity="0.3"/>
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        
+                        <!-- Static Gear Icon -->
+                        <Path Data="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm12-88a12,12,0,1,1-12-12A12,12,0,0,1,140,128Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,128Zm-88,0a12,12,0,1,1-12-12A12,12,0,0,1,96,128Z"
+                              Fill="{DynamicResource AccentBrush}"
+                              Stretch="Uniform"
+                              Width="120"
+                              Height="120"
+                              HorizontalAlignment="Center"
+                              Opacity="0.7">
+                            <Path.Effect>
+                                <DropShadowEffect BlurRadius="15" ShadowDepth="3" Color="#40000000" Opacity="0.2"/>
+                            </Path.Effect>
+                        </Path>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Settings view -->
+            <Grid x:Name="SettingsView" 
+                  Visibility="Collapsed"
+                  HorizontalAlignment="Stretch">
+                <Border Background="{DynamicResource MessageInputBrush}" 
+                        CornerRadius="25"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        BorderThickness="1.5">
+                    <Border.BorderBrush>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#80FFFFFF" Offset="0"/>
+                            <GradientStop Color="#20FFFFFF" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.BorderBrush>
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="#40000000" Opacity="0.1"/>
+                    </Border.Effect>
+                    
+                    <Frame x:Name="SettingsFrame" 
+                           NavigationUIVisibility="Hidden"
+                           Background="Transparent"
+                           HorizontalAlignment="Stretch"
+                           HorizontalContentAlignment="Stretch"/>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Emoji Popup -->
+        <Popup x:Name="EmojiPopup"
+               Placement="Top"
+               StaysOpen="False"
+               PopupAnimation="Fade"
+               AllowsTransparency="True">
+            <Border Background="{DynamicResource MessageInputBrush}"
+                    CornerRadius="15"
+                    Padding="15"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource BorderBrushColor}">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="20" ShadowDepth="5" Color="#40000000" Opacity="0.3"/>
+                </Border.Effect>
+                <ScrollViewer MaxHeight="300" MaxWidth="400" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="EmojiList">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Width="50" Height="50" Margin="5" 
+                                        Background="Transparent" BorderThickness="0"
+                                        Cursor="Hand" Click="EmojiItem_Click"
+                                        Tag="{Binding}">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                CornerRadius="8">
+                                                            <ContentPresenter HorizontalAlignment="Center" 
+                                                                              VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ChatListBrush}"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <TextBlock Text="{Binding}" 
+                                               FontSize="28"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+        </Popup>
+
+        <!-- User Profile Panel (Right Side) -->
+        <Border Grid.Column="2" 
+        Background="{DynamicResource MessageInputBrush}" 
+        CornerRadius="25"
+        Margin="6,12,12,12"
+        x:Name="UserProfilePanel"
+        Visibility="Collapsed"
+        BorderThickness="1.5">
+
+    <Border.Resources>
+        <Style x:Key="ScrollThumb" TargetType="{x:Type Thumb}">
+            <Setter Property="MinHeight" Value="20"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Border Background="#605A4A42" CornerRadius="4" BorderThickness="0"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MinimalScrollBar" TargetType="{x:Type ScrollBar}">
+            <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width" Value="6"/>
+            <Setter Property="Margin" Value="0,35,0,35"/>
+             <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="GridRoot" Width="6" Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true" Focusable="false">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ScrollThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ModernScrollViewer" TargetType="{x:Type ScrollViewer}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" 
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}" 
+                                                    Grid.Column="0" 
+                                                    Margin="{TemplateBinding Padding}" 
+                                                    Content="{TemplateBinding Content}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" 
+                                       Style="{StaticResource MinimalScrollBar}"
+                                       Grid.Column="1" 
+                                       Maximum="{TemplateBinding ScrollableHeight}" 
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" 
+                                       Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" 
+                                       ViewportSize="{TemplateBinding ViewportHeight}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Border.Resources>
+
+    <Border.BorderBrush>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#80FFFFFF" Offset="0"/>
+            <GradientStop Color="#20FFFFFF" Offset="1"/>
+        </LinearGradientBrush>
+    </Border.BorderBrush>
+    
+    <Border.Effect>
+        <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="#40000000" Opacity="0.1"/>
+    </Border.Effect>
+    
+    <ScrollViewer Style="{StaticResource ModernScrollViewer}" 
+                  VerticalScrollBarVisibility="Auto" 
+                  Padding="30">
+        <StackPanel>
+            <Ellipse x:Name="ProfileAvatar"
+                     Width="225"
+                     Height="225"
+                     HorizontalAlignment="Center"
+                     Margin="0,20,0,30">
+                <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#8B7355" Offset="0"/>
+                        <GradientStop Color="#A68B6B" Offset="1"/>
+                    </LinearGradientBrush>
+                </Ellipse.Fill>
+                <Ellipse.Effect>
+                    <DropShadowEffect BlurRadius="15" ShadowDepth="3" Color="#40000000" Opacity="0.2"/>
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <StackPanel Margin="0,0,0,20">
+                <TextBlock Text="Name"
+                           FontSize="22"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                           Margin="0,0,0,8"/>
+                <Border Background="{DynamicResource MessageInputBrush}"
+                        CornerRadius="12"
+                        Padding="15,12">
+                    <TextBlock x:Name="ProfileName"
+                               Text=""
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Margin="0,0,0,20">
+                <TextBlock Text="Username"
+                           FontSize="22"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                           Margin="0,0,0,8"/>
+                <Border Background="{DynamicResource MessageInputBrush}"
+                        CornerRadius="12"
+                        Padding="15,12">
+                    <TextBlock x:Name="ProfileUsername"
+                               Text=""
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Margin="0,0,0,20">
+                <TextBlock Text="Profile info"
+                           FontSize="22"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                           Margin="0,0,0,8"/>
+                <Border Background="{DynamicResource MessageInputBrush}"
+                        CornerRadius="12"
+                        Padding="15,12">
+                    <TextBlock x:Name="ProfileInfo"
+                               Text=""
+                               FontSize="15"
+                               Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                               TextWrapping="Wrap"/>
+                </Border>
+            </StackPanel>
+
+            <TextBlock Text="Statistics"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                       Margin="0,10,0,20"/>
+
+            <StackPanel Margin="0,0,0,30">
+                <TextBlock Text="Mutual Groups"
+                           FontSize="22"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                           Margin="0,0,0,8"/>
+                <Border Background="{DynamicResource MessageInputBrush}"
+                        CornerRadius="12"
+                        Padding="15,12">
+                    <TextBlock x:Name="ProfileMutualGroups"
+                               Text="0"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                </Border>
+            </StackPanel>
+
+            <Button x:Name="DeleteChatButton"
+                    Content="Delete chat"
+                    Height="50"
+                    Background="{DynamicResource DeleteButtonBrush}"
+                    Foreground="{DynamicResource DeleteTextBrush}"
+                    FontSize="15"
+                    FontWeight="Regular"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Margin="0,0,0,20"
+                    Click="DeleteChatButton_Click">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="15"
+                                Padding="20,0">
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Center" 
+                                        VerticalAlignment="Center">
+                                <Viewbox Width="16" Height="16" Stretch="Uniform" Margin="0,0,10,0">
+                                    <Canvas Width="256" Height="256">
+                                        <Path Data="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"
+                                              Fill="{TemplateBinding Foreground}"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True"/>
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+            
+        </StackPanel>
+    </ScrollViewer>
+</Border>
     </Grid>
 </Window>

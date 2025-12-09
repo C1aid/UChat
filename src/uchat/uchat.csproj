@@ -1,15 +1,41 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType> 
-    <TargetFramework>net8.0-windows</TargetFramework> 
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF> 
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Uchat.Shared\Uchat.Shared.csproj" />
   </ItemGroup>
 
-  </Project>
+  <ItemGroup>
+    <Folder Include="Converters\" />
+    <Folder Include="Models\" />
+    <Folder Include="Services\" />
+    <Folder Include="Themes\" />
+    <Folder Include="Views\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Images\background.png" />
+    <Resource Include="Assets\Images\logo.png" />
+    <Resource Include="Assets\Images\emoji.png" />
+    <Resource Include="Assets\Images\send.png" />
+    <Resource Include="Assets\Images\search.png" />
+    <Resource Include="Assets\Images\call.png" />
+    <Resource Include="Assets\Images\add.png" />
+    <Resource Include="Assets\Images\edit.png" />
+    <Resource Include="Assets\Images\direct_messages.png" />
+    <Resource Include="Assets\Images\group_chats.png" />
+    <Resource Include="Assets\Images\settings.png" />
+  </ItemGroup>
+</Project>

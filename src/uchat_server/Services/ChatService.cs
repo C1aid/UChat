@@ -35,9 +35,11 @@ namespace uchat_server.Services
             return await _context.Users.FindAsync(userId);
         }
 
+
         public async Task<ChatRoom?> GetChatRoomAsync(int roomId)
         {
             return await _context.ChatRooms
+                .AsNoTracking()
                 .Include(c => c.Members)
                     .ThenInclude(m => m.User)
                 .FirstOrDefaultAsync(c => c.Id == roomId);
@@ -148,29 +150,82 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = username,
                 ChatRoomId = message.ChatRoomId,
-                MessageType = message.MessageType
+                MessageType = message.MessageType,
+                Avatar = user?.Avatar,
+                FileUrl = message.FileUrl ?? string.Empty,
+                FileName = message.FileName ?? string.Empty,
+                MimeType = message.MimeType ?? string.Empty,
+                FileSize = message.FileSize
             };
         }
 
-        public async Task<MessageDto[]> GetRoomMessagesAsync(int chatRoomId)
+        public async Task<MessageDto> SaveFileMessageAsync(int userId, int chatRoomId, string fileUrl, 
+            string fileName, string mimeType, long fileSize, MessageType messageType)
+        {
+            var message = new Message
+            {
+                Content = fileName,
+                SentAt = DateTime.UtcNow,
+                UserId = userId,
+                ChatRoomId = chatRoomId,
+                MessageType = messageType,
+                FileUrl = fileUrl,
+                FileName = fileName,
+                MimeType = mimeType,
+                FileSize = fileSize
+            };
+
+            _context.Messages.Add(message);
+            await _context.SaveChangesAsync();
+
+            var user = await _context.Users.FindAsync(userId);
+            var username = user?.Username ?? "Unknown";
+
+            return new MessageDto
+            {
+                Id = message.Id,
+                Content = message.Content,
+                SentAt = message.SentAt,
+                UserId = message.UserId,
+                Username = username,
+                ChatRoomId = message.ChatRoomId,
+                MessageType = message.MessageType,
+                Avatar = user?.Avatar,
+                FileUrl = message.FileUrl ?? string.Empty,
+                FileName = message.FileName ?? string.Empty,
+                MimeType = message.MimeType ?? string.Empty,
+                FileSize = message.FileSize
+            };
+        }
+
+        public async Task<MessageDto[]> GetRoomMessagesAsync(int chatRoomId, int limit = 100)
         {
             var messages = await _context.Messages
+                .AsNoTracking()
                 .Include(m => m.User)
                 .Where(m => m.ChatRoomId == chatRoomId)
-                .OrderBy(m => m.SentAt)
+                .OrderByDescending(m => m.SentAt)
+                .Take(limit)
                 .ToArrayAsync();
 
-            return messages.Select(m => new MessageDto
-            {
-                Id = m.Id,
-                Content = m.Content,
-                SentAt = m.SentAt,
-                EditedAt = m.EditedAt,
-                UserId = m.UserId,
-                Username = m.User?.Username ?? "Unknown",
-                ChatRoomId = m.ChatRoomId,
-                MessageType = m.MessageType
-            }).ToArray();
+            return messages
+                .Reverse()
+                .Select(m => new MessageDto
+                {
+                    Id = m.Id,
+                    Content = m.Content,
+                    SentAt = m.SentAt,
+                    EditedAt = m.EditedAt,
+                    UserId = m.UserId,
+                    Username = m.User?.Username ?? "Unknown",
+                    ChatRoomId = m.ChatRoomId,
+                    MessageType = m.MessageType,
+                    Avatar = m.User?.Avatar,
+                    FileUrl = m.FileUrl ?? string.Empty,
+                    FileName = m.FileName ?? string.Empty,
+                    MimeType = m.MimeType ?? string.Empty,
+                    FileSize = m.FileSize
+                }).ToArray();
         }
 
         public async Task<bool> IsUserInRoomAsync(int userId, int chatRoomId)
@@ -199,7 +254,12 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = message.User?.Username ?? "Unknown",
                 ChatRoomId = message.ChatRoomId,
-                MessageType = message.MessageType
+                MessageType = message.MessageType,
+                Avatar = message.User?.Avatar,
+                FileUrl = message.FileUrl ?? string.Empty,
+                FileName = message.FileName ?? string.Empty,
+                MimeType = message.MimeType ?? string.Empty,
+                FileSize = message.FileSize
             };
         }
 
@@ -212,6 +272,90 @@ namespace uchat_server.Services
             _context.Messages.Remove(message);
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<bool> DeleteChatAsync(int chatRoomId, int userId)
+        {
+            try
+            {
+                // Используем AsNoTracking для чтения, чтобы избежать проблем с отслеживанием
+                var chatRoom = await _context.ChatRooms
+                    .AsNoTracking()
+                    .Include(c => c.Members)
+                    .FirstOrDefaultAsync(c => c.Id == chatRoomId);
+
+                if (chatRoom == null)
+                {
+                    _logger.LogWarning("Chat room not found: {ChatRoomId}", chatRoomId);
+                    return false;
+                }
+
+                // Проверяем, что пользователь является участником чата
+                var isMember = chatRoom.Members.Any(m => m.UserId == userId);
+                if (!isMember)
+                {
+                    _logger.LogWarning("User {UserId} is not a member of chat {ChatRoomId}", userId, chatRoomId);
+                    return false;
+                }
+
+                // Для приватных чатов удаляем чат полностью (для обоих пользователей)
+                if (!chatRoom.IsGroup)
+                {
+                    // Удаляем всех участников напрямую через запрос
+                    var membersToDelete = await _context.ChatRoomMembers
+                        .Where(crm => crm.ChatRoomId == chatRoomId)
+                        .ToListAsync();
+                    
+                    if (membersToDelete.Any())
+                    {
+                        _context.ChatRoomMembers.RemoveRange(membersToDelete);
+                    }
+
+                    // Удаляем все сообщения в чате напрямую через запрос
+                    var messagesToDelete = await _context.Messages
+                        .Where(m => m.ChatRoomId == chatRoomId)
+                        .ToListAsync();
+                    
+                    if (messagesToDelete.Any())
+                    {
+                        _context.Messages.RemoveRange(messagesToDelete);
+                    }
+
+                    // Удаляем сам чат (загружаем заново для отслеживания)
+                    var chatRoomToDelete = await _context.ChatRooms.FindAsync(chatRoomId);
+                    if (chatRoomToDelete != null)
+                    {
+                        _context.ChatRooms.Remove(chatRoomToDelete);
+                    }
+                }
+                else
+                {
+                    // Для групповых чатов удаляем только членство пользователя
+                    var userMembership = await _context.ChatRoomMembers
+                        .FirstOrDefaultAsync(crm => crm.ChatRoomId == chatRoomId && crm.UserId == userId);
+                    
+                    if (userMembership != null)
+                    {
+                        _context.ChatRoomMembers.Remove(userMembership);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Chat {ChatRoomId} deleted by user {UserId}", chatRoomId, userId);
+                return true;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrency exception when deleting chat {ChatRoomId} for user {UserId}. Chat may have already been deleted.", chatRoomId, userId);
+                // Проверяем, действительно ли чат был удален
+                var stillExists = await _context.ChatRooms.AnyAsync(c => c.Id == chatRoomId);
+                return !stillExists; // Возвращаем true, если чат больше не существует
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting chat {ChatRoomId} for user {UserId}", chatRoomId, userId);
+                return false;
+            }
         }
 
         public async Task<bool> EditMessageAsync(int messageId, string newContent)
@@ -245,7 +389,11 @@ namespace uchat_server.Services
                 UserId = message.UserId,
                 Username = message.User?.Username ?? "Unknown",
                 ChatRoomId = message.ChatRoomId,
-                MessageType = message.MessageType
+                MessageType = message.MessageType,
+                FileUrl = message.FileUrl ?? string.Empty,
+                FileName = message.FileName ?? string.Empty,
+                MimeType = message.MimeType ?? string.Empty,
+                FileSize = message.FileSize
             };
         }
     }

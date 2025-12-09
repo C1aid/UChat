@@ -15,5 +15,6 @@ namespace Uchat.Shared.DTOs
         public int UnreadCount { get; set; }
         public string? LastMessage { get; set; }
         public DateTime? LastMessageTime { get; set; }
+        public byte[]? Avatar { get; set; }
     }
 }

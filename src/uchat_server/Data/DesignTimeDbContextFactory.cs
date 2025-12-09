@@ -9,7 +9,7 @@ namespace uchat_server.Data
         public ChatContext CreateDbContext(string[] args)
         {
             var optionsBuilder = new DbContextOptionsBuilder<ChatContext>();
-            optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=uchat;Username=postgres;Password=securepass");
+            optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=uchat;Username=postgres");
 
             return new ChatContext(optionsBuilder.Options);
         }

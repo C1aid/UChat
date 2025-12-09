@@ -18,7 +18,7 @@ namespace uchat_server.Data
         {
             if (!options.IsConfigured)
             {
-                options.UseNpgsql("Host=localhost;Port=5432;Database=uchat;Username=postgres;Password=securepass");
+                options.UseNpgsql("Host=localhost;Port=5432;Database=uchat;Username=postgres");
             }
         }
 
@@ -35,10 +35,12 @@ namespace uchat_server.Data
                 entity.HasIndex(u => u.Username).IsUnique();
                 entity.Property(u => u.Username).IsRequired().HasMaxLength(50);
                 entity.Property(u => u.PasswordHash).IsRequired();
-                entity.Property(u => u.FirstName).HasMaxLength(50);
-                entity.Property(u => u.LastName).HasMaxLength(50);
+                entity.Property(u => u.DisplayName).HasMaxLength(100).HasDefaultValue("");
+                entity.Property(u => u.ProfileInfo).HasColumnType("text").HasDefaultValue("");
+                entity.Property(u => u.Theme).HasMaxLength(20).HasDefaultValue("Latte");
                 entity.Property(u => u.CreatedAt).IsRequired();
                 entity.Property(u => u.LastSeen).IsRequired(false);
+                entity.Property(u => u.UpdatedAt).IsRequired(false);
                 entity.Property(u => u.Avatar).HasColumnType("bytea").IsRequired(false);
             });
 
@@ -47,6 +49,12 @@ namespace uchat_server.Data
                 entity.HasKey(m => m.Id);
                 entity.Property(m => m.Content).IsRequired();
                 entity.Property(m => m.SentAt).IsRequired();
+                entity.Property(m => m.EditedAt).IsRequired(false);
+                entity.Property(m => m.MessageType).IsRequired();
+                entity.Property(m => m.FileUrl).IsRequired(false);
+                entity.Property(m => m.FileName).IsRequired(false);
+                entity.Property(m => m.MimeType).HasMaxLength(50).IsRequired(false);
+                entity.Property(m => m.FileSize).HasDefaultValue(0L);
 
                 entity.HasOne(m => m.User)
                     .WithMany(u => u.Messages)
