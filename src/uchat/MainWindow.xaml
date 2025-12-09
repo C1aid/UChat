@@ -11,8 +11,8 @@
         Background="Transparent"
         ResizeMode="CanResizeWithGrip"
         Title="Uchat" 
-        Height="925" 
-        Width="1600"
+        Height="800" 
+        Width="1200"
         MinHeight="600"
         MinWidth="1000"
         WindowStartupLocation="CenterScreen"
@@ -382,11 +382,12 @@
         </Style>
     </Window.Resources>
 
-    <Grid Background="{DynamicResource WindowBackgroundBrush}" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+    <Grid Background="{DynamicResource WindowBackgroundBrush}" MouseLeftButtonDown="Header_MouseLeftButtonDown" ClipToBounds="False" >
         <Grid.ColumnDefinitions>
             <ColumnDefinition MinWidth="300" Width="380"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition x:Name="RightPanelColumn" MinWidth="250" Width="320"/>
+            
         </Grid.ColumnDefinitions>
 
         <!-- Left Panel with Layered Neumorphic Design -->
@@ -932,7 +933,7 @@
                                        Text="Select a chat" 
                                        FontSize="36" 
                                        FontWeight="Bold"
-                                       Foreground="{DynamicResource ForegroundTetriaryBrush}"
+                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,15,0"/>
 
@@ -974,131 +975,189 @@
 
                 <!-- Messages List -->
                 <Border Grid.Row="1" 
-                        Background="{DynamicResource MessageListBrush}" 
-                        Opacity="0.9"
-                        CornerRadius="32"
-                        ClipToBounds="True"
-                        Margin="0,5"
-                        BorderThickness="1.5">
-                    <Border.BorderBrush>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#80FFFFFF" Offset="0"/>
-                            <GradientStop Color="#20FFFFFF" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.BorderBrush>
-                    <ListBox x:Name="MessagesList" 
-                             Background="Transparent"
-                             BorderThickness="0"
-                             ItemsSource="{Binding ChatMessages}"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto"
-                             Padding="25,25,25,25">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ContextMenu>
-                                        <ContextMenu>
-                                            <MenuItem Header="✏️ Edit" 
-                                                      Click="EditMessageMenuItem_Click"
-                                                      Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=ShowEditMenu}"/>
-                                            <MenuItem Header="🗑️ Delete" 
-                                                      Click="DeleteMessageMenuItem_Click"
-                                                      Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=ShowEditMenu}"/>
-                                        </ContextMenu>
-                                    </Grid.ContextMenu>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    
-                                    <!-- Received Message (Left) - Other Users -->
-                                    <Border Grid.Column="0"
-                                            Style="{StaticResource ReceivedMessageBubbleStyle}"
-                                            HorizontalAlignment="Left"
-                                            Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=Left}">
-                                        <StackPanel>
-                                            <!-- Username and Time for received messages -->
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                                <TextBlock Text="{Binding Username}" 
-                                                           FontWeight="regular"
-                                                           FontSize="16"
-                                                           Foreground="{DynamicResource ForegroundSecondaryBrush}"
-                                                           Margin="0,0,8,0"/>
-                                                <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
-                                                           FontSize="10"
-                                                           Foreground="{DynamicResource RecieveTimeBrush}"
-                                                           Opacity="0.7"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                            
-                                            <!-- Text Message -->
-                                            <StackPanel Orientation="Horizontal" 
-                                                        Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}">
-                                                <TextBlock Text="{Binding Content}"
-                                                           FontFamily="{StaticResource AppFontFamily}"
-                                                           FontSize="16"
-                                                           FontWeight="Medium"
-                                                           TextWrapping="Wrap"
-                                                           Foreground="{DynamicResource ReceivedMessageTextBrush}"/>
-                                                <TextBlock Text=" (edited)" 
-                                                           FontSize="11"
-                                                           Foreground="#999999"
-                                                           Opacity="0.7"
-                                                           Margin="4,0,0,0"
-                                                           VerticalAlignment="Bottom"
-                                                           Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
+        Background="{DynamicResource MessageListBrush}" 
+        Opacity="0.9"
+        CornerRadius="32"
+        ClipToBounds="True"
+        Margin="0,5"
+        BorderThickness="1.5">
+    
+    <Border.BorderBrush>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#80FFFFFF" Offset="0"/>
+            <GradientStop Color="#20FFFFFF" Offset="1"/>
+        </LinearGradientBrush>
+    </Border.BorderBrush>
 
-                                    <!-- Sent Message (Right) - Current User -->
-                                    <Border Grid.Column="1"
-                                            Style="{StaticResource SentMessageBubbleStyle}"
-                                            HorizontalAlignment="Right"
-                                            Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=Right}">
-                                        <StackPanel>
-                                            <!-- Text Message -->
-                                            <StackPanel Orientation="Horizontal" 
-                                                        Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}">
-                                                <TextBlock Text="{Binding Content}"
-                                                           FontFamily="{StaticResource AppFontFamily}"
-                                                           FontSize="15"
-                                                           TextWrapping="Wrap"
-                                                           Foreground="{DynamicResource SentMessageTextBrush}"/>
-                                                <TextBlock Text=" (edited)" 
-                                                           FontSize="11"
-                                                           Foreground="White"
-                                                           Opacity="0.7"
-                                                           Margin="4,0,0,0"
-                                                           VerticalAlignment="Bottom"
-                                                           Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
-                                            </StackPanel>
-                                            
-                                            <!-- Time for sent messages (bottom right) -->
-                                            <StackPanel Orientation="Horizontal" 
-                                                        HorizontalAlignment="Right" 
-                                                        Margin="0,4,0,0">
-                                                <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
-                                                           FontSize="10"
-                                                           Foreground="{DynamicResource SendTimeBrush}"
-                                                           Opacity="0.7"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                        
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Background" Value="Transparent"/>
-                                <Setter Property="BorderThickness" Value="0"/>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                    </ListBox>
-                </Border>
+    <ListBox x:Name="MessagesList" 
+             Background="Transparent"
+             BorderThickness="0"
+             ItemsSource="{Binding ChatMessages}"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ScrollViewer.VerticalScrollBarVisibility="Auto"
+             ScrollViewer.CanContentScroll="False" 
+             Padding="25,25,10,25">
+
+        <ListBox.Resources>
+            <Style x:Key="ScrollThumb" TargetType="{x:Type Thumb}">
+                <Setter Property="MinHeight" Value="30"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Thumb}">
+                            <Border Background="#905A4A42" CornerRadius="3" BorderThickness="0"/>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="{x:Type ScrollBar}">
+                <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Width" Value="6"/>
+                <Setter Property="Margin" Value="0,10,4,10"/> 
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ScrollBar}">
+                            <Grid x:Name="GridRoot" Width="6" Background="Transparent">
+                                <Track x:Name="PART_Track" IsDirectionReversed="true" Focusable="false">
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ScrollThumb}"/>
+                                    </Track.Thumb>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="{x:Type ScrollViewer}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                            <Grid Background="{TemplateBinding Background}">
+                                <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" 
+                                                        CanContentScroll="{TemplateBinding CanContentScroll}" 
+                                                        Margin="{TemplateBinding Padding}" 
+                                                        Content="{TemplateBinding Content}"/>
+                                <ScrollBar x:Name="PART_VerticalScrollBar" 
+                                           HorizontalAlignment="Right"
+                                           Style="{StaticResource {x:Type ScrollBar}}"
+                                           Maximum="{TemplateBinding ScrollableHeight}" 
+                                           Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" 
+                                           Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" 
+                                           ViewportSize="{TemplateBinding ViewportHeight}"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ListBox.Resources>
+
+        <ListBox.ItemTemplate>
+            <DataTemplate>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="✏️ Edit" 
+                                      Click="EditMessageMenuItem_Click"
+                                      Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=ShowEditMenu}"/>
+                            <MenuItem Header="🗑️ Delete" 
+                                      Click="DeleteMessageMenuItem_Click"
+                                      Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=ShowEditMenu}"/>
+                        </ContextMenu>
+                    </Grid.ContextMenu>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <Border Grid.Column="0"
+                            Style="{StaticResource ReceivedMessageBubbleStyle}"
+                            HorizontalAlignment="Left"
+                            Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=Left}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Username}" 
+                                       FontWeight="Regular"
+                                       FontSize="12" 
+                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                       Margin="0,-3,0,2"
+                                       Opacity="0.8"/> 
+                            
+                            <StackPanel Orientation="Horizontal" 
+                                        Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}">
+                                <TextBlock Text="{Binding Content}"
+                                           FontFamily="{StaticResource AppFontFamily}"
+                                           FontSize="16"
+                                           FontWeight="Medium"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource ReceivedMessageTextBrush}"/>
+                                <TextBlock Text=" (edited)" 
+                                           FontSize="11"
+                                           Foreground="#999999"
+                                           Opacity="0.7"
+                                           Margin="4,0,0,0"
+                                           VerticalAlignment="Bottom"
+                                           Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Right" 
+                                        Margin="0,4,0,0">
+                                <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
+                                           FontSize="10"
+                                           Foreground="{DynamicResource RecieveTimeBrush}"
+                                           Opacity="0.6"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Style="{StaticResource SentMessageBubbleStyle}"
+                            HorizontalAlignment="Right"
+                            Visibility="{Binding UserId, Converter={StaticResource MessageAlignmentConverter}, ConverterParameter=Right}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" 
+                                        Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}">
+                                <TextBlock Text="{Binding Content}"
+                                           FontFamily="{StaticResource AppFontFamily}"
+                                           FontSize="15"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SentMessageTextBrush}"/>
+                                <TextBlock Text=" (edited)" 
+                                           FontSize="11"
+                                           Foreground="White"
+                                           Opacity="0.7"
+                                           Margin="4,0,0,0"
+                                           VerticalAlignment="Bottom"
+                                           Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
+                            </StackPanel>
+                            
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Right" 
+                                        Margin="0,4,0,0">
+                                <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
+                                           FontSize="10"
+                                           Foreground="{DynamicResource SendTimeBrush}"
+                                           Opacity="0.7"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+        
+        <ListBox.ItemContainerStyle>
+            <Style TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+            </Style>
+        </ListBox.ItemContainerStyle>
+    </ListBox>
+</Border>
 
                 <!-- Message Input -->
                 <Border Grid.Row="2" 
@@ -1204,8 +1263,7 @@
                 <Border Background="{DynamicResource MessageInputBrush}" 
                         CornerRadius="25"
                         HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch"
-                        BorderThickness="1.5">
+                        VerticalAlignment="Stretch">
                     <Border.BorderBrush>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#80FFFFFF" Offset="0"/>
@@ -1333,13 +1391,15 @@
         </Popup>
 
         <!-- User Profile Panel (Right Side) -->
-        <Border Grid.Column="2" 
+        <Border Grid.Column="2"  
         Background="{DynamicResource MessageInputBrush}" 
-        CornerRadius="25"
-        Margin="6,12,12,12"
+        CornerRadius="32"
+        Margin="12"
         x:Name="UserProfilePanel"
         Visibility="Collapsed"
-        BorderThickness="1.5">
+        BorderThickness="1.5"
+        SnapsToDevicePixels="False"
+        ClipToBounds="False">
 
     <Border.Resources>
         <Style x:Key="ScrollThumb" TargetType="{x:Type Thumb}">
@@ -1417,8 +1477,8 @@
                   Padding="30">
         <StackPanel>
             <Ellipse x:Name="ProfileAvatar"
-                     Width="225"
-                     Height="225"
+                     Width="200"
+                     Height="200"
                      HorizontalAlignment="Center"
                      Margin="0,20,0,30">
                 <Ellipse.Fill>
@@ -1428,7 +1488,7 @@
                     </LinearGradientBrush>
                 </Ellipse.Fill>
                 <Ellipse.Effect>
-                    <DropShadowEffect BlurRadius="15" ShadowDepth="3" Color="#40000000" Opacity="0.2"/>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Color="#40000000" Opacity="0.1"/>
                 </Ellipse.Effect>
             </Ellipse>
 
@@ -1446,6 +1506,10 @@
                                FontSize="16"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                               <Border.Effect>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Color="#40000000" Opacity="0.1"/>
+                </Border.Effect>
+                               
                 </Border>
             </StackPanel>
 
@@ -1463,6 +1527,9 @@
                                FontSize="16"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                               <Border.Effect>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Color="#40000000" Opacity="0.1"/>
+                </Border.Effect>
                 </Border>
             </StackPanel>
 
@@ -1480,6 +1547,9 @@
                                FontSize="15"
                                Foreground="{DynamicResource ForegroundTetriaryBrush}"
                                TextWrapping="Wrap"/>
+                               <Border.Effect>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Color="#40000000" Opacity="0.1"/>
+                </Border.Effect>
                 </Border>
             </StackPanel>
 
@@ -1503,6 +1573,9 @@
                                FontSize="16"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                               <Border.Effect>
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="2" Color="#40000000" Opacity="0.1"/>
+                </Border.Effect>
                 </Border>
             </StackPanel>
 
