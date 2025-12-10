@@ -428,7 +428,7 @@
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
-                            <RadioButton x:Name="OceanBreezeThemeRadio"
+                            <RadioButton x:Name="AcaiThemeRadio"
                                          Content="Ocean Breeze"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"
@@ -449,7 +449,7 @@
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
-                            <RadioButton x:Name="DeepSpaceThemeRadio"
+                            <RadioButton x:Name="EarlGreyThemeRadio"
                                          Content="Deep Space"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"
@@ -470,7 +470,7 @@
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
-                            <RadioButton x:Name="WarmGlowThemeRadio"
+                            <RadioButton x:Name="MulledWineThemeRadio"
                                          Content="Warm Glow"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"
@@ -491,7 +491,7 @@
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
-                            <RadioButton x:Name="NorthernColdThemeRadio"
+                            <RadioButton x:Name="AnchanThemeRadio"
                                          Content="Northern Cold"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"

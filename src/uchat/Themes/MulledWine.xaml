@@ -1,0 +1,103 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <RadialGradientBrush x:Key="WindowBackgroundBrush" 
+                         GradientOrigin="0.5,0.5" Center="0.5,0.5" 
+                         RadiusX="1.2" RadiusY="1.2">
+        <GradientStop Color="#44202D" Offset="0.0"/> <GradientStop Color="#0F0505" Offset="1.0"/> </RadialGradientBrush>
+
+    <RadialGradientBrush x:Key="MessageListBrush"
+                         GradientOrigin="0.5,0.5" Center="0.5,0.5"
+                         RadiusX="1.5" RadiusY="1.5">
+        <GradientStop Color="#26171D" Offset="0.0"/>
+        <GradientStop Color="#12080A" Offset="1.0"/>
+    </RadialGradientBrush>
+
+    <SolidColorBrush x:Key="LeftPanelBrush" Color="#26171D" Opacity="0.8"/>
+    <SolidColorBrush x:Key="ChatListBrush" Color="#26171D" Opacity="0.4"/>
+    
+    <SolidColorBrush x:Key="MessageInputBrush" Color="#1A0F13" Opacity="0.8"/>
+
+    <SolidColorBrush x:Key="AccentBrush" Color="#E0A84D"/> 
+    <Color x:Key="AccentColor">#E0A84D</Color>
+
+    <SolidColorBrush x:Key="ForegroundPrimaryBrush" Color="#F5EFEF"/>
+    <SolidColorBrush x:Key="ForegroundSecondaryBrush" Color="#BFAFB2"/>
+    <SolidColorBrush x:Key="ForegroundTetriaryBrush" Color="#F3E5DC"/>
+
+    <SolidColorBrush x:Key="BorderBrushColor" Color="#E0A84D" Opacity="0.15"/>
+    <Color x:Key="BorderColor">#E0A84D</Color>
+
+    <SolidColorBrush x:Key="RecieveBubbleBrush" Color="#180C0E"/>
+    <SolidColorBrush x:Key="ReceivedMessageTextBrush" Color="#E8E0D5"/>
+
+    <LinearGradientBrush x:Key="SendBubbleBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#D9A6A6" Offset="0.0"/> <GradientStop Color="#8C5E5E" Offset="1.0"/> </LinearGradientBrush>
+    <SolidColorBrush x:Key="SentMessageTextBrush" Color="#3E1818"/> <SolidColorBrush x:Key="DeleteButtonBrush" Color="#8C5E5E" Opacity="0.3"/>
+    <SolidColorBrush x:Key="DeleteTextBrush" Color="#E1B6B6"/>
+
+    <Style x:Key="RoundButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="14"/>
+        <Setter Property="Height" Value="14"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="ButtonBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="7"> <Border.Effect>
+                            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#420C09" Opacity="0.4"/>
+                        </Border.Effect>
+                        <ContentPresenter HorizontalAlignment="Center" 
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.8"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.6"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ToggleIconStyle" TargetType="RadioButton">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="#A67B7B"/> <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid x:Name="GridRoot" Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Grid>
+                    
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#E0C090"/> </Trigger>
+                        
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="GridRoot" Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#D6AD60"/> <Setter TargetName="GridRoot" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect BlurRadius="10" Color="#D6AD60" Opacity="0.5" ShadowDepth="0"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="GridRoot" Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#D6AD60"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

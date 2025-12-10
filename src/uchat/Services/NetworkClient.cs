@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -25,6 +26,11 @@ namespace uchat.Services
         private SemaphoreSlim _connectSemaphore = new SemaphoreSlim(1, 1);
         private TaskCompletionSource<string>? _pendingResponse;
         private readonly object _pendingResponseLock = new object();
+        private readonly ConcurrentDictionary<string, FileDownloadSession> _fileDownloads = new();
+        private readonly JsonSerializerOptions _responseJsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
 
         public bool IsConnected => _client != null && _client.Connected;
 
@@ -118,6 +124,11 @@ namespace uchat.Services
 
         private void OnMessageReceived(string message)
         {
+            if (TryHandleFileTransferMessage(message))
+            {
+                return;
+            }
+
             MessageReceived?.Invoke(message);
 
             TaskCompletionSource<string>? pendingResponse = null;
@@ -382,6 +393,56 @@ namespace uchat.Services
             }
         }
 
+        public async Task<ApiResponse> UploadFileAsync(int chatRoomId, string filePath, MessageType messageType)
+        {
+            if (!IsConnected || _writer == null || _stream == null)
+            {
+                return new ApiResponse { Success = false, Message = "Нет подключения к серверу" };
+            }
+
+            if (!File.Exists(filePath))
+            {
+                return new ApiResponse { Success = false, Message = "Файл не найден" };
+            }
+
+            await _writeSemaphore.WaitAsync();
+            try
+            {
+                var fileInfo = new FileInfo(filePath);
+                var sanitizedName = SanitizeFileName(fileInfo.Name);
+                var command = $"/upload_file {chatRoomId} {sanitizedName} {fileInfo.Length} {messageType}";
+
+                await _writer.WriteLineAsync(command);
+
+                var readyResponse = DeserializeApiResponse(await ReceiveMessageAsync(10000));
+                if (!readyResponse.Success)
+                {
+                    return readyResponse;
+                }
+
+                using (var fileStream = File.OpenRead(filePath))
+                {
+                    byte[] buffer = new byte[81920];
+                    int bytesRead;
+                    while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    {
+                        await _stream.WriteAsync(buffer, 0, bytesRead);
+                    }
+                }
+
+                var completionResponse = DeserializeApiResponse(await ReceiveMessageAsync(30000));
+                return completionResponse;
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse { Success = false, Message = ex.Message };
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
+        }
+
         public async Task<ApiResponse?> UploadAvatarAsync(byte[] avatarData)
         {
             if (!IsConnected || _writer == null || _reader == null)
@@ -408,6 +469,63 @@ namespace uchat.Services
             catch
             {
                 return null;
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
+        }
+
+        public async Task<(bool Success, string Message, byte[]? Data)> DownloadFileInlineAsync(string uniqueFileName)
+        {
+            if (!IsConnected || _writer == null)
+            {
+                return (false, "Нет подключения", null);
+            }
+
+            await _writeSemaphore.WaitAsync();
+            try
+            {
+                var command = $"/download_inline {uniqueFileName}";
+                await _writer.WriteLineAsync(command);
+
+                var responseJson = await ReceiveMessageAsync(15000);
+                if (string.IsNullOrEmpty(responseJson))
+                {
+                    return (false, "Нет ответа от сервера", null);
+                }
+
+                var response = DeserializeApiResponse(responseJson);
+                if (!response.Success)
+                {
+                    return (false, response.Message ?? "Загрузка отклонена", null);
+                }
+
+                if (response.Data is JsonElement element)
+                {
+                    if (element.TryGetProperty("Data", out var dataProp))
+                    {
+                        var base64 = dataProp.GetString();
+                        if (!string.IsNullOrWhiteSpace(base64))
+                        {
+                            return (true, response.Message ?? string.Empty, Convert.FromBase64String(base64));
+                        }
+                    }
+                    else if (element.ValueKind == JsonValueKind.String)
+                    {
+                        var base64 = element.GetString();
+                        if (!string.IsNullOrWhiteSpace(base64))
+                        {
+                            return (true, response.Message ?? string.Empty, Convert.FromBase64String(base64));
+                        }
+                    }
+                }
+
+                return (false, "Неверный формат ответа сервера", null);
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message, null);
             }
             finally
             {
@@ -457,110 +575,361 @@ namespace uchat.Services
             }
         }
 
-        private async Task<string?> ReadLineFromStreamAsync(NetworkStream stream, int timeoutMs = 10000)
+        private bool TryHandleFileTransferMessage(string message)
         {
-            var buffer = new List<byte>(256);
-            var readBuffer = new byte[256];
-            var cts = new CancellationTokenSource(timeoutMs);
-
+            ApiResponse? response;
             try
             {
-                int totalRead = 0;
-                while (totalRead < 8192)
-                {
-                    int bytesRead = await stream.ReadAsync(readBuffer, 0, 1, cts.Token);
-                    if (bytesRead == 0) return null;
-
-                    byte b = readBuffer[0];
-                    totalRead++;
-
-                    if (b == '\n')
-                    {
-                        break;
-                    }
-
-                    if (b != '\r')
-                    {
-                        buffer.Add(b);
-                    }
-                }
-
-                return Encoding.UTF8.GetString(buffer.ToArray());
-            }
-            catch (OperationCanceledException)
-            {
-                return null;
+                response = JsonSerializer.Deserialize<ApiResponse>(message, _responseJsonOptions);
             }
             catch
             {
-                return null;
+                return false;
+            }
+
+            if (response == null || string.IsNullOrWhiteSpace(response.Message))
+            {
+                return false;
+            }
+
+            return response.Message switch
+            {
+                "FILE_TRANSFER_START" => HandleFileTransferStart(response),
+                "FILE_TRANSFER_CHUNK" => HandleFileTransferChunk(response),
+                "FILE_TRANSFER_COMPLETE" => HandleFileTransferComplete(response),
+                "FILE_TRANSFER_FAILED" => HandleFileTransferFailed(response),
+                _ => false
+            };
+        }
+
+        private bool HandleFileTransferStart(ApiResponse response)
+        {
+            if (response.Data is not JsonElement element)
+            {
+                return true;
+            }
+
+            FileDownloadMetadata? metadata;
+            try
+            {
+                metadata = JsonSerializer.Deserialize<FileDownloadMetadata>(element.GetRawText(), _responseJsonOptions);
+            }
+            catch
+            {
+                return true;
+            }
+
+            if (metadata == null || string.IsNullOrWhiteSpace(metadata.FileName))
+            {
+                return true;
+            }
+
+            if (!_fileDownloads.TryGetValue(metadata.FileName, out var session))
+            {
+                return true;
+            }
+
+            try
+            {
+                session.Initialize(metadata.FileSize);
+            }
+            catch (Exception ex)
+            {
+                FinalizeDownloadSession(metadata.FileName, session, false, $"Не удалось подготовить файл: {ex.Message}");
+            }
+
+            return true;
+        }
+
+        private bool HandleFileTransferChunk(ApiResponse response)
+        {
+            if (response.Data is not JsonElement element)
+            {
+                return true;
+            }
+
+            FileChunkDto? chunk;
+            try
+            {
+                chunk = JsonSerializer.Deserialize<FileChunkDto>(element.GetRawText(), _responseJsonOptions);
+            }
+            catch
+            {
+                return true;
+            }
+
+            if (chunk == null || string.IsNullOrWhiteSpace(chunk.FileName))
+            {
+                return true;
+            }
+
+            if (!_fileDownloads.TryGetValue(chunk.FileName, out var session))
+            {
+                return true;
+            }
+
+            try
+            {
+                session.WriteChunk(chunk);
+            }
+            catch (Exception ex)
+            {
+                FinalizeDownloadSession(chunk.FileName, session, false, $"Ошибка записи файла: {ex.Message}");
+            }
+
+            return true;
+        }
+
+        private bool HandleFileTransferComplete(ApiResponse response)
+        {
+            if (response.Data is not JsonElement element)
+            {
+                return true;
+            }
+
+            string? fileName = null;
+            try
+            {
+                if (element.ValueKind == JsonValueKind.String)
+                {
+                    fileName = element.GetString();
+                }
+                else if (element.TryGetProperty("FileName", out var nameProp))
+                {
+                    fileName = nameProp.GetString();
+                }
+            }
+            catch
+            {
+                fileName = null;
+            }
+
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return true;
+            }
+
+            if (!_fileDownloads.TryGetValue(fileName, out var session))
+            {
+                return true;
+            }
+
+            FinalizeDownloadSession(fileName, session, true, "Файл загружен успешно.");
+            return true;
+        }
+
+        private bool HandleFileTransferFailed(ApiResponse response)
+        {
+            string? fileName = null;
+            string? reason = response.Message;
+
+            if (response.Data is JsonElement element)
+            {
+                try
+                {
+                    if (element.ValueKind == JsonValueKind.String)
+                    {
+                        fileName = element.GetString();
+                    }
+                    else
+                    {
+                        if (element.TryGetProperty("FileName", out var fileProp))
+                        {
+                            fileName = fileProp.GetString();
+                        }
+                        if (element.TryGetProperty("Reason", out var reasonProp))
+                        {
+                            reason = reasonProp.GetString();
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return true;
+            }
+
+            if (!_fileDownloads.TryGetValue(fileName, out var session))
+            {
+                return true;
+            }
+
+            FinalizeDownloadSession(fileName, session, false, reason ?? "Загрузка отменена сервером.");
+            return true;
+        }
+
+        private void FinalizeDownloadSession(string fileName, FileDownloadSession session, bool success, string message)
+        {
+            if (_fileDownloads.TryRemove(fileName, out var current) && !ReferenceEquals(current, session))
+            {
+                current.Dispose();
+                session = current;
+            }
+            else
+            {
+                _fileDownloads.TryRemove(fileName, out _);
+            }
+
+            if (success)
+            {
+                session.Complete(message);
+            }
+            else
+            {
+                session.Fail(message);
+            }
+        }
+
+        private sealed class FileDownloadSession : IDisposable
+        {
+            public string FileName { get; }
+            public string DestinationPath { get; }
+            public TaskCompletionSource<(bool Success, string Message)> Completion { get; } =
+                new TaskCompletionSource<(bool Success, string Message)>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            private FileStream? _stream;
+            private long _expectedSize;
+            private long _received;
+
+            public FileDownloadSession(string fileName, string destinationPath)
+            {
+                FileName = fileName;
+                DestinationPath = destinationPath;
+            }
+
+            public void Initialize(long expectedBytes)
+            {
+                if (_stream != null)
+                {
+                    return;
+                }
+
+                _expectedSize = expectedBytes;
+
+                var directory = Path.GetDirectoryName(DestinationPath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                _stream = new FileStream(DestinationPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                _received = 0;
+            }
+
+            public void WriteChunk(FileChunkDto chunk)
+            {
+                if (_stream == null)
+                {
+                    throw new InvalidOperationException("Download stream is not initialized yet.");
+                }
+
+                if (string.IsNullOrWhiteSpace(chunk.Data))
+                {
+                    return;
+                }
+
+                var buffer = Convert.FromBase64String(chunk.Data);
+                _stream.Write(buffer, 0, buffer.Length);
+                _received += buffer.Length;
+            }
+
+            public void Complete(string message)
+            {
+                try
+                {
+                    _stream?.Flush();
+                    _stream?.Dispose();
+                    if (_expectedSize > 0 && _received != _expectedSize)
+                    {
+                        Completion.TrySetResult((false, "Размер файла не совпадает с ожидаемым."));
+                        return;
+                    }
+
+                    Completion.TrySetResult((true, message));
+                }
+                finally
+                {
+                    _stream = null;
+                }
+            }
+
+            public void Fail(string message)
+            {
+                try
+                {
+                    _stream?.Dispose();
+                    if (File.Exists(DestinationPath))
+                    {
+                        File.Delete(DestinationPath);
+                    }
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    _stream = null;
+                }
+
+                Completion.TrySetResult((false, message));
+            }
+
+            public void Dispose()
+            {
+                _stream?.Dispose();
             }
         }
 
         public async Task<(bool Success, string Message)> DownloadFileAsync(string uniqueFileName, string destinationPath)
         {
-            if (_stream == null || _client == null || !_client.Connected)
-                return (false, "Not connected to server.");
+            if (!IsConnected || _writer == null)
+            {
+                return (false, "Нет подключения к серверу.");
+            }
+
+            var session = new FileDownloadSession(uniqueFileName, destinationPath);
+            if (!_fileDownloads.TryAdd(uniqueFileName, session))
+            {
+                return (false, "Загрузка этого файла уже выполняется.");
+            }
 
             try
             {
-                var stream = _stream!;
-                byte[] commandBytes = Encoding.UTF8.GetBytes($"/download {uniqueFileName}\n");
-                await stream.WriteAsync(commandBytes, 0, commandBytes.Length);
-                await stream.FlushAsync();
-
-                string? headerLine = await ReadLineFromStreamAsync(stream, 15000);
-
-                if (string.IsNullOrEmpty(headerLine))
-                {
-                    return (false, "Timeout waiting for server response.");
-                }
-
-                var headerResponse = DeserializeApiResponse(headerLine);
-
-                if (!headerResponse.Success || headerResponse.Message != "FILE_TRANSFER_START" || headerResponse.Data == null)
-                {
-                    return (false, headerResponse.Message ?? "Download failed.");
-                }
-
-                FileDownloadMetadata? metadata = null;
-                if (headerResponse.Data is JsonElement jsonElement)
-                {
-                    metadata = JsonSerializer.Deserialize<FileDownloadMetadata>(jsonElement.GetRawText());
-                }
-
-                if (metadata == null)
-                {
-                    return (false, "Invalid metadata.");
-                }
-
-                long fileSize = metadata.FileSize;
-
-                using (var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write))
-                {
-                    byte[] buffer = new byte[81920];
-                    long totalBytesRead = 0;
-                    int bytesRead;
-
-                    while (totalBytesRead < fileSize)
-                    {
-                        int bytesToRead = (int)Math.Min(buffer.Length, fileSize - totalBytesRead);
-                        bytesRead = await stream.ReadAsync(buffer, 0, bytesToRead);
-
-                        if (bytesRead == 0) throw new IOException("Connection lost during download.");
-
-                        await fileStream.WriteAsync(buffer, 0, bytesRead);
-                        totalBytesRead += bytesRead;
-                    }
-                }
-
-                return (true, "File downloaded successfully.");
+                await _writeSemaphore.WaitAsync();
+                var commandBytes = $"/download {uniqueFileName}";
+                await _writer.WriteLineAsync(commandBytes);
             }
             catch (Exception ex)
             {
-                if (File.Exists(destinationPath)) File.Delete(destinationPath);
-                return (false, $"Error: {ex.Message}");
+                _fileDownloads.TryRemove(uniqueFileName, out _);
+                session.Fail($"Не удалось отправить команду скачивания: {ex.Message}");
+                return await session.Completion.Task;
             }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
+
+            var timeoutTask = Task.Delay(TimeSpan.FromMinutes(5));
+            var completedTask = await Task.WhenAny(session.Completion.Task, timeoutTask);
+
+            if (completedTask != session.Completion.Task)
+            {
+                if (_fileDownloads.TryRemove(uniqueFileName, out var pendingSession))
+                {
+                    pendingSession.Fail("Загрузка прервана по таймауту.");
+                }
+
+                return await session.Completion.Task;
+            }
+
+            var result = await session.Completion.Task;
+            _fileDownloads.TryRemove(uniqueFileName, out _);
+            return result;
         }
 
         public async Task<ApiResponse> EditMessageAsync(int messageId, string newContent)
@@ -630,6 +999,16 @@ namespace uchat.Services
         public void Dispose()
         {
             Disconnect();
+        }
+
+        private static string SanitizeFileName(string fileName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            foreach (var ch in invalidChars)
+            {
+                fileName = fileName.Replace(ch, '_');
+            }
+            return fileName.Replace(' ', '_');
         }
     }
 }

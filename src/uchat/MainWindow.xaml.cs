@@ -1,22 +1,26 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.IO;
-using System.Windows.Data;
-using System.Threading;
+using System.Windows.Threading;
 using uchat.Models;
 using uchat.Services;
 using uchat.Views;
 using Uchat.Shared.DTOs;
 using Uchat.Shared.Enums;
+using Microsoft.Win32;
 
 namespace uchat
 {
@@ -25,6 +29,22 @@ namespace uchat
         private readonly NetworkClient? _network;
         private readonly UserSession _userSession;
         private int _currentRoomId = 0;
+        private readonly string _downloadRoot;
+        private readonly ConcurrentDictionary<int, Task> _attachmentDownloads = new ConcurrentDictionary<int, Task>();
+        private bool _isUploadingFile = false;
+        private static readonly HashSet<string> ImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"
+        };
+        private static readonly HashSet<string> VideoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"
+        };
+        private static readonly HashSet<string> AudioExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a"
+        };
+        private const long InlineDownloadLimitBytes = 20L * 1024L * 1024L;
 
         public ObservableCollection<MessageDto> ChatMessages { get; set; } = new ObservableCollection<MessageDto>();
         public ObservableCollection<ChatInfoDto> ChatList { get; set; } = new ObservableCollection<ChatInfoDto>();
@@ -40,14 +60,32 @@ namespace uchat
         private CancellationTokenSource? _profileLoadCts;
         private readonly object _profileLoadLock = new object();
         private int _lastLoadedProfileUserId = 0;
+        private readonly Dictionary<Slider, MediaElement> _inlineVideoSliders = new();
+        private readonly HashSet<Slider> _activeSliderGestures = new();
+        private readonly DispatcherTimer _videoProgressTimer;
 
         public MainWindow(NetworkClient network, UserSession userSession)
         {
             InitializeComponent();
             _userSession = userSession;
             _network = network;
+
+            _videoProgressTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(250)
+            };
+            _videoProgressTimer.Tick += VideoProgressTimer_Tick;
             
             UserSession.Current = _userSession;
+
+            _downloadRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "UChat", "Downloads");
+            try
+            {
+                Directory.CreateDirectory(_downloadRoot);
+            }
+            catch
+            {
+            }
 
             SwitchTheme(_userSession.Theme);
             DataContext = this;
@@ -135,6 +173,10 @@ namespace uchat
         {
             try
             {
+                _videoProgressTimer.Stop();
+                _inlineVideoSliders.Clear();
+                _activeSliderGestures.Clear();
+
                 if (_network != null)
                 {
                     _network.MessageReceived -= OnMessageReceived;
@@ -601,6 +643,7 @@ namespace uchat
                         foreach (var msg in chatResponse.History)
                         {
                             ChatMessages.Add(msg);
+                            PrefetchAttachmentIfNeeded(msg);
                         }
                         
                         if (MessagesList.Items.Count > 0)
@@ -727,6 +770,7 @@ namespace uchat
                     _ = Dispatcher.InvokeAsync(() =>
                     {
                         ChatMessages.Add(msgDto);
+                        PrefetchAttachmentIfNeeded(msgDto);
                         if (MessagesList.Items.Count > 0)
                         {
                             MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
@@ -929,6 +973,135 @@ namespace uchat
             catch { }
         }
 
+        private void PrefetchAttachmentIfNeeded(MessageDto? message)
+        {
+            if (message == null || string.IsNullOrWhiteSpace(message.FileUrl))
+            {
+                return;
+            }
+
+            bool shouldPrefetch = false;
+
+            if (message.MessageType == MessageType.Image)
+            {
+                shouldPrefetch = true;
+            }
+            else if (IsVideoMessage(message))
+            {
+                bool withinInlineLimit = message.FileSize <= 0 || message.FileSize <= InlineDownloadLimitBytes;
+                shouldPrefetch = withinInlineLimit;
+            }
+
+            if (shouldPrefetch)
+            {
+                _ = EnsureInlineAttachmentAsync(message);
+            }
+
+            bool IsVideoMessage(MessageDto msg)
+            {
+                if (msg.MessageType == MessageType.Video)
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(msg.FileName))
+                {
+                    var extension = Path.GetExtension(msg.FileName);
+                    if (!string.IsNullOrWhiteSpace(extension) && VideoExtensions.Contains(extension))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        private Task EnsureInlineAttachmentAsync(MessageDto message, bool force = false, bool openAfterDownload = false)
+        {
+            if (_network == null || !_network.IsConnected)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (!force && !string.IsNullOrWhiteSpace(message.LocalFilePath) && File.Exists(message.LocalFilePath))
+            {
+                if (openAfterDownload)
+                {
+                    OpenFileWithShell(message.LocalFilePath);
+                }
+                return Task.CompletedTask;
+            }
+
+            if (string.IsNullOrWhiteSpace(message.FileUrl))
+            {
+                return Task.CompletedTask;
+            }
+
+            return _attachmentDownloads.GetOrAdd(message.Id, _ => DownloadInlineAsync());
+
+            async Task DownloadInlineAsync()
+            {
+                try
+                {
+                    var localPath = await FetchAndSaveAttachmentAsync(message, force);
+                    if (!string.IsNullOrEmpty(localPath) && openAfterDownload)
+                    {
+                        OpenFileWithShell(localPath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (force)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            MessageBox.Show($"Не удалось загрузить вложение: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        });
+                    }
+                }
+                finally
+                {
+                    _attachmentDownloads.TryRemove(message.Id, out _);
+                }
+            }
+        }
+
+        private async Task<string?> FetchAndSaveAttachmentAsync(MessageDto message, bool force)
+        {
+            if (_network == null || !_network.IsConnected)
+            {
+                throw new InvalidOperationException("Нет подключения к серверу");
+            }
+
+            var safeFolder = Path.Combine(_downloadRoot, message.ChatRoomId.ToString());
+            Directory.CreateDirectory(safeFolder);
+
+            var targetFileName = EnsureSafeFileName(!string.IsNullOrWhiteSpace(message.FileName)
+                ? message.FileName
+                : message.FileUrl);
+            var localPath = Path.Combine(safeFolder, targetFileName);
+
+            if (!force && File.Exists(localPath))
+            {
+                message.LocalFilePath = localPath;
+                RefreshMessagesViewByDispatcher();
+                return localPath;
+            }
+
+            var downloadResult = await _network.DownloadFileInlineAsync(message.FileUrl);
+            if (!downloadResult.Success || downloadResult.Data == null)
+            {
+                throw new InvalidOperationException(downloadResult.Message ?? "Не удалось загрузить файл");
+            }
+
+            await File.WriteAllBytesAsync(localPath, downloadResult.Data);
+            message.LocalFilePath = localPath;
+            RefreshMessagesViewByDispatcher();
+
+            return localPath;
+        }
+
         private void OnConnectionLost()
         {
             if (_network != null && _network.IsConnected)
@@ -954,6 +1127,33 @@ namespace uchat
         private void SendButton_Click(object sender, RoutedEventArgs e)
         {
             SendMessage();
+        }
+
+        private async void AttachmentButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentRoomId == 0)
+            {
+                MessageBox.Show("Сначала выберите чат", "Нет активного чата", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_isUploadingFile)
+            {
+                MessageBox.Show("Дождитесь завершения текущей загрузки", "Файл отправляется", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new OpenFileDialog
+            {
+                Title = "Выберите файл для отправки",
+                Filter = "Все поддерживаемые|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp;*.mp4;*.mov;*.avi;*.mkv;*.webm;*.mp3;*.wav;*.flac;*.ogg;*.zip;*.rar;*.7z;*.pdf;*.doc;*.docx;*.xls;*.xlsx|Изображения|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|Все файлы|*.*",
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                await UploadAttachmentAsync(dialog.FileName);
+            }
         }
 
         private void MessageInput_KeyDown(object sender, KeyEventArgs e)
@@ -1059,6 +1259,92 @@ namespace uchat
             {
                 _isSendingMessage = false;
             }
+        }
+
+        private async Task UploadAttachmentAsync(string filePath)
+        {
+            if (_network == null || !_network.IsConnected)
+            {
+                MessageBox.Show("Нет подключения к серверу", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!File.Exists(filePath))
+            {
+                MessageBox.Show("Файл не найден", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_currentRoomId == 0)
+            {
+                MessageBox.Show("Выберите чат перед отправкой файла", "Нет активного чата", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var messageType = ResolveMessageType(filePath);
+            var fileName = Path.GetFileName(filePath);
+
+            _isUploadingFile = true;
+            UpdateUploadStatus($"Отправляем {fileName}", true);
+
+            try
+            {
+                var response = await _network.UploadFileAsync(_currentRoomId, filePath, messageType);
+                if (!response.Success)
+                {
+                    MessageBox.Show(response.Message ?? "Не удалось загрузить файл", "Ошибка загрузки", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка загрузки файла: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _isUploadingFile = false;
+                UpdateUploadStatus(string.Empty, false);
+            }
+        }
+
+        private void UpdateUploadStatus(string message, bool isVisible)
+        {
+            if (UploadStatusPanel == null || UploadStatusText == null)
+            {
+                return;
+            }
+
+            UploadStatusPanel.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+            UploadStatusText.Text = isVisible ? message : string.Empty;
+            if (AttachmentButton != null)
+            {
+                AttachmentButton.IsEnabled = !isVisible;
+            }
+        }
+
+        private MessageType ResolveMessageType(string filePath)
+        {
+            var extension = Path.GetExtension(filePath);
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                return MessageType.File;
+            }
+
+            if (ImageExtensions.Contains(extension))
+            {
+                return MessageType.Image;
+            }
+
+            if (AudioExtensions.Contains(extension))
+            {
+                return MessageType.Audio;
+            }
+
+            if (VideoExtensions.Contains(extension))
+            {
+                return MessageType.Video;
+            }
+
+            return MessageType.File;
         }
 
         protected override void OnClosed(EventArgs e)
@@ -2036,6 +2322,430 @@ namespace uchat
                         }
                     }
                 }
+            }
+        }
+
+        private async void DownloadAttachmentButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is MessageDto message)
+            {
+                await DownloadAttachmentWithDialogAsync(message);
+            }
+        }
+
+        private async void OpenAttachmentButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is MessageDto message)
+            {
+                if (string.IsNullOrWhiteSpace(message.LocalFilePath) || !File.Exists(message.LocalFilePath))
+                {
+                    if (message.MessageType == MessageType.Image)
+                    {
+                        await EnsureInlineAttachmentAsync(message, force: true, openAfterDownload: true);
+                        return;
+                    }
+
+                    await DownloadAttachmentWithDialogAsync(message);
+                }
+                else
+                {
+                    OpenFileWithShell(message.LocalFilePath);
+                }
+            }
+        }
+
+        private async void ImageAttachment_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Image image && image.DataContext is MessageDto message)
+            {
+                await EnsureInlineAttachmentAsync(message, force: true, openAfterDownload: true);
+            }
+        }
+
+        private void InlineVideoPlayButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button)
+            {
+                return;
+            }
+
+            if (!TryGetMediaElementFromButton(button, out var mediaElement) || mediaElement == null)
+            {
+                return;
+            }
+
+            if (!EnsureMediaSource(mediaElement, button.DataContext))
+            {
+                MessageBox.Show("Видео ещё не загружено", "Воспроизведение", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                mediaElement.Play();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Не удалось начать воспроизведение: {ex.Message}", "Видео", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void InlineVideoPauseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button)
+            {
+                return;
+            }
+
+            if (!TryGetMediaElementFromButton(button, out var mediaElement) || mediaElement == null)
+            {
+                return;
+            }
+
+            if (!EnsureMediaSource(mediaElement, button.DataContext))
+            {
+                return;
+            }
+
+            mediaElement.Pause();
+        }
+
+        private void InlineVideoStopButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button)
+            {
+                return;
+            }
+
+            if (!TryGetMediaElementFromButton(button, out var mediaElement) || mediaElement == null)
+            {
+                return;
+            }
+
+            mediaElement.Stop();
+        }
+
+        private void InlineVideo_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            if (sender is MediaElement element)
+            {
+                element.Stop();
+            }
+        }
+
+        private void InlineVideo_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MediaElement mediaElement)
+            {
+                return;
+            }
+
+            if (!mediaElement.NaturalDuration.HasTimeSpan)
+            {
+                return;
+            }
+
+            var duration = mediaElement.NaturalDuration.TimeSpan.TotalSeconds;
+            if (duration <= 0 || double.IsNaN(duration) || double.IsInfinity(duration))
+            {
+                return;
+            }
+
+            foreach (var pair in _inlineVideoSliders.ToArray())
+            {
+                if (pair.Value == mediaElement)
+                {
+                    pair.Key.Maximum = duration;
+                }
+            }
+        }
+
+        private void InlineVideoSlider_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Slider slider)
+            {
+                return;
+            }
+
+            if (slider.Tag is not MediaElement mediaElement)
+            {
+                return;
+            }
+
+            _inlineVideoSliders[slider] = mediaElement;
+            EnsureVideoTimerState();
+        }
+
+        private void InlineVideoSlider_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Slider slider)
+            {
+                return;
+            }
+
+            _inlineVideoSliders.Remove(slider);
+            _activeSliderGestures.Remove(slider);
+            EnsureVideoTimerState();
+        }
+
+        private void InlineVideoSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Slider slider)
+            {
+                _activeSliderGestures.Add(slider);
+            }
+        }
+
+        private void InlineVideoSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Slider slider)
+            {
+                if (_activeSliderGestures.Remove(slider))
+                {
+                    ApplySliderPosition(slider);
+                }
+            }
+        }
+
+        private void InlineVideoSlider_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            if (sender is Slider slider && _activeSliderGestures.Remove(slider))
+            {
+                ApplySliderPosition(slider);
+            }
+        }
+
+        private bool TryGetMediaElementFromButton(Button button, out MediaElement? mediaElement)
+        {
+            if (button.Tag is MediaElement directElement)
+            {
+                mediaElement = directElement;
+                return true;
+            }
+
+            mediaElement = null;
+            return false;
+        }
+
+        private bool EnsureMediaSource(MediaElement element, object? context)
+        {
+            if (element.Source != null)
+            {
+                return true;
+            }
+
+            if (context is MessageDto message)
+            {
+                var path = message.LocalFilePath;
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    try
+                    {
+                        element.Source = new Uri(Path.GetFullPath(path));
+                        return true;
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private void ApplySliderPosition(Slider slider)
+        {
+            if (!_inlineVideoSliders.TryGetValue(slider, out var mediaElement))
+            {
+                return;
+            }
+
+            if (!mediaElement.NaturalDuration.HasTimeSpan)
+            {
+                return;
+            }
+
+            var targetSeconds = slider.Value;
+            var maxSeconds = mediaElement.NaturalDuration.TimeSpan.TotalSeconds;
+            if (double.IsNaN(targetSeconds) || double.IsInfinity(targetSeconds) || maxSeconds <= 0)
+            {
+                return;
+            }
+
+            targetSeconds = Math.Max(0, Math.Min(targetSeconds, maxSeconds));
+            mediaElement.Position = TimeSpan.FromSeconds(targetSeconds);
+        }
+
+        private void VideoProgressTimer_Tick(object? sender, EventArgs e)
+        {
+            foreach (var pair in _inlineVideoSliders.ToArray())
+            {
+                var slider = pair.Key;
+                var media = pair.Value;
+
+                if (slider == null || media == null)
+                {
+                    continue;
+                }
+
+                if (!media.NaturalDuration.HasTimeSpan)
+                {
+                    continue;
+                }
+
+                var duration = media.NaturalDuration.TimeSpan.TotalSeconds;
+                if (duration <= 0)
+                {
+                    continue;
+                }
+
+                if (!double.IsNaN(duration) && !double.IsInfinity(duration))
+                {
+                    slider.Maximum = duration;
+                }
+
+                if (_activeSliderGestures.Contains(slider))
+                {
+                    continue;
+                }
+
+                var currentSeconds = media.Position.TotalSeconds;
+                if (!double.IsNaN(currentSeconds) && !double.IsInfinity(currentSeconds))
+                {
+                    slider.Value = Math.Max(0, Math.Min(currentSeconds, duration));
+                }
+            }
+        }
+
+        private void EnsureVideoTimerState()
+        {
+            if (_inlineVideoSliders.Count > 0)
+            {
+                if (!_videoProgressTimer.IsEnabled)
+                {
+                    _videoProgressTimer.Start();
+                }
+            }
+            else if (_videoProgressTimer.IsEnabled)
+            {
+                _videoProgressTimer.Stop();
+            }
+        }
+
+        private async Task DownloadAttachmentWithDialogAsync(MessageDto message)
+        {
+            if (_network == null || !_network.IsConnected)
+            {
+                MessageBox.Show("Нет подключения к серверу", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(message.FileUrl))
+            {
+                MessageBox.Show("Вложение недоступно для скачивания", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                FileName = EnsureSafeFileName(!string.IsNullOrWhiteSpace(message.FileName) ? message.FileName : message.FileUrl),
+                Filter = "Все файлы (*.*)|*.*",
+                Title = "Сохранить вложение"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            try
+            {
+                var destination = dialog.FileName;
+
+                if (message.FileSize > InlineDownloadLimitBytes)
+                {
+                    await DownloadLargeFileAsync(message, destination);
+                }
+                else
+                {
+                    var inlineResult = await _network.DownloadFileInlineAsync(message.FileUrl);
+                    if (inlineResult.Success && inlineResult.Data != null)
+                    {
+                        await File.WriteAllBytesAsync(destination, inlineResult.Data);
+                    }
+                    else
+                    {
+                        await DownloadLargeFileAsync(message, destination, inlineResult.Message);
+                    }
+                }
+
+                message.LocalFilePath = destination;
+                RefreshMessagesViewByDispatcher();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка скачивания файла: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task DownloadLargeFileAsync(MessageDto message, string destinationPath, string? fallbackReason = null)
+        {
+            var downloadResult = await _network!.DownloadFileAsync(message.FileUrl, destinationPath);
+            if (!downloadResult.Success)
+            {
+                throw new InvalidOperationException(downloadResult.Message ?? fallbackReason ?? "Не удалось скачать файл");
+            }
+        }
+
+        private void OpenFileWithShell(string localPath)
+        {
+            if (!File.Exists(localPath))
+            {
+                MessageBox.Show("Файл не найден на диске", "Открыть файл", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(localPath)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Не удалось открыть файл: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private static string EnsureSafeFileName(string? fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return $"file_{Guid.NewGuid():N}";
+            }
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var buffer = new char[fileName.Length];
+            for (int i = 0; i < fileName.Length; i++)
+            {
+                var ch = fileName[i];
+                buffer[i] = invalidChars.Contains(ch) ? '_' : ch;
+            }
+
+            return new string(buffer);
+        }
+
+        private void RefreshMessagesViewByDispatcher()
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                RefreshMessagesView();
+            }
+            else
+            {
+                _ = Dispatcher.InvokeAsync(RefreshMessagesView);
             }
         }
 

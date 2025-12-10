@@ -61,6 +61,23 @@ namespace uchat.Converters
         }
     }
 
+    public class VideoMessageVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is MessageType type)
+            {
+                return type == MessageType.Video ? Visibility.Visible : Visibility.Collapsed;
+            }
+            return Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public class FileSizeConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -124,6 +141,23 @@ namespace uchat.Converters
         }
     }
 
+    public class MissingLocalFileVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string path && !string.IsNullOrWhiteSpace(path))
+            {
+                return File.Exists(path) ? Visibility.Collapsed : Visibility.Visible;
+            }
+            return Visibility.Visible;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public class ImagePathToBitmapConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -149,8 +183,7 @@ namespace uchat.Converters
                     var bitmap = new BitmapImage();
                     bitmap.BeginInit();
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.DecodePixelWidth = 600;
-                    bitmap.DecodePixelHeight = 600;
+                    bitmap.DecodePixelWidth = 1024;
                     bitmap.UriSource = uri;
                     bitmap.EndInit();
                     bitmap.Freeze();
@@ -169,6 +202,37 @@ namespace uchat.Converters
                     return DependencyProperty.UnsetValue;
                 }
             }
+            return DependencyProperty.UnsetValue;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class LocalPathToMediaSourceConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string path && !string.IsNullOrWhiteSpace(path))
+            {
+                try
+                {
+                    if (!File.Exists(path))
+                    {
+                        return DependencyProperty.UnsetValue;
+                    }
+
+                    var absolute = Path.GetFullPath(path);
+                    return new Uri(absolute, UriKind.Absolute);
+                }
+                catch
+                {
+                    return DependencyProperty.UnsetValue;
+                }
+            }
+
             return DependencyProperty.UnsetValue;
         }
 

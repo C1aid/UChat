@@ -11,8 +11,8 @@
         Background="Transparent"
         ResizeMode="CanResizeWithGrip"
         Title="Uchat" 
-        Height="800" 
-        Width="1200"
+        Height="720" 
+        Width="1280"
         MinHeight="600"
         MinWidth="1000"
         WindowStartupLocation="CenterScreen"
@@ -26,6 +26,15 @@
         <converters:AvatarToBrushConverter x:Key="AvatarToBrushConverter"/>
         <converters:TextMessageVisibilityConverter x:Key="TextMessageVisibilityConverter"/>
         <converters:EditedMessageVisibilityConverter x:Key="EditedMessageVisibilityConverter"/>
+        <converters:ImageMessageVisibilityConverter x:Key="ImageMessageVisibilityConverter"/>
+        <converters:VideoMessageVisibilityConverter x:Key="VideoMessageVisibilityConverter"/>
+        <converters:FileMessageVisibilityConverter x:Key="FileMessageVisibilityConverter"/>
+        <converters:FileSizeConverter x:Key="FileSizeConverter"/>
+        <converters:FileTypeIconConverter x:Key="FileTypeIconConverter"/>
+        <converters:LocalFileVisibilityConverter x:Key="LocalFileVisibilityConverter"/>
+        <converters:MissingLocalFileVisibilityConverter x:Key="MissingLocalFileVisibilityConverter"/>
+        <converters:ImagePathToBitmapConverter x:Key="ImagePathToBitmapConverter"/>
+        <converters:LocalPathToMediaSourceConverter x:Key="LocalPathToMediaSourceConverter"/>
         
         <!-- Global TextBlock Style -->
         <Style TargetType="TextBlock">
@@ -1081,8 +1090,8 @@
                                        FontSize="12" 
                                        Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                        Margin="0,-3,0,2"
-                                       Opacity="0.8"/> 
-                            
+                                       Opacity="0.8"/>
+
                             <StackPanel Orientation="Horizontal" 
                                         Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}">
                                 <TextBlock Text="{Binding Content}"
@@ -1100,9 +1109,138 @@
                                            Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
                             </StackPanel>
 
+                            <Grid Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}"
+                                  Margin="0,6,0,0">
+                                <Border CornerRadius="18" Background="#10FFFFFF" ClipToBounds="True">
+                                    <Grid>
+                                        <Image Source="{Binding LocalFilePath, Converter={StaticResource ImagePathToBitmapConverter}}"
+                                               Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
+                                               MaxWidth="360"
+                                               MaxHeight="360"
+                                               Stretch="Uniform"
+                                               StretchDirection="DownOnly"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Top"
+                                               SnapsToDevicePixels="True"
+                                               UseLayoutRounding="True"
+                                               Cursor="Hand"
+                                               MouseLeftButtonUp="ImageAttachment_MouseLeftButtonUp"/>
+                                        <Border Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
+                                                Background="#66000000"
+                                                Padding="20"
+                                                CornerRadius="12">
+                                            <TextBlock Text="Загружается превью..."
+                                                       Foreground="White"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <Grid Visibility="{Binding MessageType, Converter={StaticResource VideoMessageVisibilityConverter}}"
+                                  Margin="0,6,0,0">
+                                <Border CornerRadius="18" Background="#10101010" ClipToBounds="True">
+                                    <Grid>
+                                        <MediaElement x:Name="ReceivedVideoPlayer"
+                                                      Source="{Binding LocalFilePath, Converter={StaticResource LocalPathToMediaSourceConverter}}"
+                                                      Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
+                                                      LoadedBehavior="Manual"
+                                                      UnloadedBehavior="Stop"
+                                                      Stretch="Uniform"
+                                                      ScrubbingEnabled="True"
+                                                      MediaEnded="InlineVideo_MediaEnded"
+                                                      MediaOpened="InlineVideo_MediaOpened"/>
+                                        <Border HorizontalAlignment="Center"
+                                                VerticalAlignment="Bottom"
+                                                Margin="0,0,0,12"
+                                                Background="#55000000"
+                                                Padding="12,10"
+                                                CornerRadius="20"
+                                                Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}">
+                                            <StackPanel>
+                                                <Slider Height="20"
+                                                        Width="260"
+                                                        Minimum="0"
+                                                        Margin="0,0,0,8"
+                                                        IsMoveToPointEnabled="True"
+                                                        Tag="{Binding ElementName=ReceivedVideoPlayer}"
+                                                        Loaded="InlineVideoSlider_Loaded"
+                                                        Unloaded="InlineVideoSlider_Unloaded"
+                                                        PreviewMouseLeftButtonDown="InlineVideoSlider_PreviewMouseLeftButtonDown"
+                                                        PreviewMouseLeftButtonUp="InlineVideoSlider_PreviewMouseLeftButtonUp"
+                                                        LostMouseCapture="InlineVideoSlider_LostMouseCapture"/>
+                                                <StackPanel Orientation="Horizontal"
+                                                            HorizontalAlignment="Center">
+                                                    <Button Content="▶"
+                                                            Width="42"
+                                                            Height="32"
+                                                            Margin="0,0,6,0"
+                                                            Tag="{Binding ElementName=ReceivedVideoPlayer}"
+                                                            Click="InlineVideoPlayButton_Click"/>
+                                                    <Button Content="⏸"
+                                                            Width="42"
+                                                            Height="32"
+                                                            Margin="0,0,6,0"
+                                                            Tag="{Binding ElementName=ReceivedVideoPlayer}"
+                                                            Click="InlineVideoPauseButton_Click"/>
+                                                    <Button Content="⏹"
+                                                            Width="42"
+                                                            Height="32"
+                                                            Tag="{Binding ElementName=ReceivedVideoPlayer}"
+                                                            Click="InlineVideoStopButton_Click"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
+                                                Background="#66000000"
+                                                Padding="20"
+                                                CornerRadius="12">
+                                            <TextBlock Text="Видео загружается..."
+                                                       Foreground="White"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <Border Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}"
+                                    Margin="0,8,0,0"
+                                    Padding="12"
+                                    Background="#15FFFFFF"
+                                    CornerRadius="16">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding MessageType, Converter={StaticResource FileTypeIconConverter}}"
+                                               FontSize="28"
+                                               Margin="0,0,12,0"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding FileName}"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                                        <TextBlock Text="{Binding FileSize, Converter={StaticResource FileSizeConverter}}"
+                                                   Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                   FontSize="12"
+                                                   Margin="0,2,0,6"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="Открыть"
+                                                    Padding="12,4"
+                                                    Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
+                                                    Click="OpenAttachmentButton_Click"/>
+                                            <Button Content="Скачать"
+                                                    Padding="12,4"
+                                                    Margin="8,0,0,0"
+                                                    Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
+                                                    Click="DownloadAttachmentButton_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
                             <StackPanel Orientation="Horizontal" 
                                         HorizontalAlignment="Right" 
-                                        Margin="0,4,0,0">
+                                        Margin="0,6,0,0">
                                 <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
                                            FontSize="10"
                                            Foreground="{DynamicResource RecieveTimeBrush}"
@@ -1132,10 +1270,139 @@
                                            VerticalAlignment="Bottom"
                                            Visibility="{Binding EditedAt, Converter={StaticResource EditedMessageVisibilityConverter}}"/>
                             </StackPanel>
-                            
+
+                            <Grid Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}"
+                                  Margin="0,6,0,0">
+                                <Border CornerRadius="18" Background="#10FFFFFF" ClipToBounds="True">
+                                    <Grid>
+                                        <Image Source="{Binding LocalFilePath, Converter={StaticResource ImagePathToBitmapConverter}}"
+                                               Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
+                                               MaxWidth="360"
+                                               MaxHeight="360"
+                                               Stretch="Uniform"
+                                               StretchDirection="DownOnly"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Top"
+                                               SnapsToDevicePixels="True"
+                                               UseLayoutRounding="True"
+                                               Cursor="Hand"
+                                               MouseLeftButtonUp="ImageAttachment_MouseLeftButtonUp"/>
+                                        <Border Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
+                                                Background="#33000000"
+                                                Padding="20"
+                                                CornerRadius="12">
+                                            <TextBlock Text="Подготавливаем превью..."
+                                                       Foreground="White"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <Grid Visibility="{Binding MessageType, Converter={StaticResource VideoMessageVisibilityConverter}}"
+                                  Margin="0,6,0,0">
+                                <Border CornerRadius="18" Background="#10101010" ClipToBounds="True">
+                                    <Grid>
+                                        <MediaElement x:Name="SentVideoPlayer"
+                                                      Source="{Binding LocalFilePath, Converter={StaticResource LocalPathToMediaSourceConverter}}"
+                                                      Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
+                                                      LoadedBehavior="Manual"
+                                                      UnloadedBehavior="Stop"
+                                                      Stretch="Uniform"
+                                                      ScrubbingEnabled="True"
+                                                      MediaEnded="InlineVideo_MediaEnded"
+                                                      MediaOpened="InlineVideo_MediaOpened"/>
+                                        <Border HorizontalAlignment="Center"
+                                                VerticalAlignment="Bottom"
+                                                Margin="0,0,0,12"
+                                                Background="#55000000"
+                                                Padding="12,10"
+                                                CornerRadius="20"
+                                                Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}">
+                                            <StackPanel>
+                                                <Slider Height="20"
+                                                        Width="260"
+                                                        Minimum="0"
+                                                        Margin="0,0,0,8"
+                                                        IsMoveToPointEnabled="True"
+                                                        Tag="{Binding ElementName=SentVideoPlayer}"
+                                                        Loaded="InlineVideoSlider_Loaded"
+                                                        Unloaded="InlineVideoSlider_Unloaded"
+                                                        PreviewMouseLeftButtonDown="InlineVideoSlider_PreviewMouseLeftButtonDown"
+                                                        PreviewMouseLeftButtonUp="InlineVideoSlider_PreviewMouseLeftButtonUp"
+                                                        LostMouseCapture="InlineVideoSlider_LostMouseCapture"/>
+                                                <StackPanel Orientation="Horizontal"
+                                                            HorizontalAlignment="Center">
+                                                    <Button Content="▶"
+                                                            Width="42"
+                                                            Height="32"
+                                                            Margin="0,0,6,0"
+                                                            Tag="{Binding ElementName=SentVideoPlayer}"
+                                                            Click="InlineVideoPlayButton_Click"/>
+                                                    <Button Content="⏸"
+                                                            Width="42"
+                                                            Height="32"
+                                                            Margin="0,0,6,0"
+                                                            Tag="{Binding ElementName=SentVideoPlayer}"
+                                                            Click="InlineVideoPauseButton_Click"/>
+                                                    <Button Content="⏹"
+                                                            Width="42"
+                                                            Height="32"
+                                                            Tag="{Binding ElementName=SentVideoPlayer}"
+                                                            Click="InlineVideoStopButton_Click"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
+                                                Background="#33000000"
+                                                Padding="20"
+                                                CornerRadius="12">
+                                            <TextBlock Text="Видео готовится..."
+                                                       Foreground="White"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <Border Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}"
+                                    Margin="0,8,0,0"
+                                    Padding="12"
+                                    Background="#10FFFFFF"
+                                    CornerRadius="16">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding MessageType, Converter={StaticResource FileTypeIconConverter}}"
+                                               FontSize="28"
+                                               Margin="0,0,12,0"/>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding FileName}"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource ForegroundTetriaryBrush}"/>
+                                        <TextBlock Text="{Binding FileSize, Converter={StaticResource FileSizeConverter}}"
+                                                   Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                   FontSize="12"
+                                                   Margin="0,2,0,6"/>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="Открыть"
+                                                    Padding="12,4"
+                                                    Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
+                                                    Click="OpenAttachmentButton_Click"/>
+                                            <Button Content="Скачать"
+                                                    Padding="12,4"
+                                                    Margin="8,0,0,0"
+                                                    Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
+                                                    Click="DownloadAttachmentButton_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
                             <StackPanel Orientation="Horizontal" 
                                         HorizontalAlignment="Right" 
-                                        Margin="0,4,0,0">
+                                        Margin="0,6,0,0">
                                 <TextBlock Text="{Binding SentAt, StringFormat='HH:mm'}" 
                                            FontSize="10"
                                            Foreground="{DynamicResource SendTimeBrush}"
@@ -1197,13 +1464,31 @@
                         <Grid VerticalAlignment="Center">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Emoji button (moved to left) -->
-                            <Button x:Name="EmojiButton"
+                            <!-- Attachment button -->
+                            <Button x:Name="AttachmentButton"
                                     Grid.Column="0"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Margin="0,0,12,0"
+                                    VerticalAlignment="Center"
+                                    Click="AttachmentButton_Click"
+                                    ToolTip="Отправить файл">
+                                <Viewbox Width="30" Height="30" Stretch="Uniform">
+                                    <Canvas Width="256" Height="256">
+                                        <Path Data="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"
+                                              Fill="{DynamicResource ForegroundSecondaryBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+
+                            <!-- Emoji button -->
+                            <Button x:Name="EmojiButton"
+                                    Grid.Column="1"
                                     Style="{StaticResource IconButtonStyle}"
                                     Margin="0,0,15,0"
                                     VerticalAlignment="Center"
@@ -1218,7 +1503,7 @@
                             </Button>
 
                             <!-- Message input (center) -->
-                            <Grid Grid.Column="1" Margin="0,0,15,0" VerticalAlignment="Center">
+                            <Grid Grid.Column="2" Margin="0,0,15,0" VerticalAlignment="Center">
                                 <TextBox x:Name="MessageInput" 
                                          KeyDown="MessageInput_KeyDown"
                                          GotFocus="MessageInput_GotFocus"
@@ -1237,8 +1522,8 @@
                             </Grid>
 
                             <!-- Send button (right) -->
-                            <Button x:Name="SendButton"
-                                    Grid.Column="2"
+                                <Button x:Name="SendButton"
+                                    Grid.Column="3"
                                     Style="{StaticResource IconButtonStyle}"
                                     Margin="0,0,0,0"
                                     VerticalAlignment="Center"
@@ -1251,6 +1536,23 @@
                                     </Canvas>
                                 </Viewbox>
                             </Button>
+
+                            <!-- Upload progress indicator -->
+                            <StackPanel x:Name="UploadStatusPanel"
+                                        Grid.Column="4"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        Visibility="Collapsed">
+                                <ProgressBar Width="80"
+                                             Height="4"
+                                             Margin="0,0,6,0"
+                                             IsIndeterminate="True"/>
+                                <TextBlock x:Name="UploadStatusText"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Text="Uploading..."/>
+                            </StackPanel>
                         </Grid>
                     </Grid>
                 </Border>

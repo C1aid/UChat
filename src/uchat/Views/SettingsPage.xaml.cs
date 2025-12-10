@@ -38,18 +38,7 @@ namespace uchat.Views
             UsernameBox.Text = _userSession.Username;
             ProfileInfoBox.Text = _userSession.ProfileInfo;
 
-            if (_userSession.Theme == "Latte")
-                LatteThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "Matcha")
-                MatchaThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "OceanBreeze" || _userSession.Theme == "Lugia")
-                OceanBreezeThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "DeepSpace")
-                DeepSpaceThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "WarmGlow")
-                WarmGlowThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "NorthernCold")
-                NorthernColdThemeRadio.IsChecked = true;
+            SetThemeSelection(_userSession.Theme);
         }
 
         private void UpdateAvatarDisplay()
@@ -103,17 +92,14 @@ namespace uchat.Views
                     return;
                 }
 
+                var selectedTheme = GetSelectedTheme();
+
                 var updateRequest = new UpdateProfileRequest
                 {
                     Username = newUsername,
                     DisplayName = newDisplayName,
                     ProfileInfo = ProfileInfoBox.Text.Trim(),
-                    Theme = LatteThemeRadio.IsChecked == true ? "Latte" 
-                           : MatchaThemeRadio.IsChecked == true ? "Matcha"
-                           : OceanBreezeThemeRadio.IsChecked == true ? "OceanBreeze"
-                           : DeepSpaceThemeRadio.IsChecked == true ? "DeepSpace"
-                           : WarmGlowThemeRadio.IsChecked == true ? "WarmGlow"
-                           : "NorthernCold",
+                    Theme = selectedTheme,
                     Avatar = _newAvatar
                 };
 
@@ -338,12 +324,7 @@ namespace uchat.Views
         {
             if (sender is RadioButton radioButton && radioButton.IsChecked == true)
             {
-                string selectedTheme = radioButton == LatteThemeRadio ? "Latte" 
-                                     : radioButton == MatchaThemeRadio ? "Matcha"
-                                     : radioButton == OceanBreezeThemeRadio ? "OceanBreeze"
-                                     : radioButton == DeepSpaceThemeRadio ? "DeepSpace"
-                                     : radioButton == WarmGlowThemeRadio ? "WarmGlow"
-                                     : "NorthernCold";
+                string selectedTheme = MapRadioToTheme(radioButton);
                 
                 if (_mainWindow != null)
                 {
@@ -387,6 +368,46 @@ namespace uchat.Views
         {
             ProfileInfoBox.Focus();
             ProfileInfoBox.SelectAll();
+        }
+
+        private void SetThemeSelection(string? theme)
+        {
+            var targetRadio = theme switch
+            {
+                "Latte" => LatteThemeRadio,
+                "Matcha" => MatchaThemeRadio,
+                "Acai" => AcaiThemeRadio,
+                "Lugia" => AcaiThemeRadio,
+                "EarlGrey" => EarlGreyThemeRadio,
+                "MulledWine" => MulledWineThemeRadio,
+                "Anchan" => AnchanThemeRadio,
+                _ => null
+            };
+
+            if (targetRadio != null)
+            {
+                targetRadio.IsChecked = true;
+            }
+        }
+
+        private string GetSelectedTheme()
+        {
+            return LatteThemeRadio.IsChecked == true ? "Latte"
+                 : MatchaThemeRadio.IsChecked == true ? "Matcha"
+                 : AcaiThemeRadio.IsChecked == true ? "Acai"
+                 : EarlGreyThemeRadio.IsChecked == true ? "EarlGrey"
+                 : MulledWineThemeRadio.IsChecked == true ? "MulledWine"
+                 : "Anchan";
+        }
+
+        private string MapRadioToTheme(RadioButton radioButton)
+        {
+            return radioButton == LatteThemeRadio ? "Latte"
+                 : radioButton == MatchaThemeRadio ? "Matcha"
+                 : radioButton == AcaiThemeRadio ? "Acai"
+                 : radioButton == EarlGreyThemeRadio ? "EarlGrey"
+                 : radioButton == MulledWineThemeRadio ? "MulledWine"
+                 : "Anchan";
         }
     }
 }

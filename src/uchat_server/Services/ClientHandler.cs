@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -25,6 +26,20 @@ namespace uchat_server.Services
         private int _currentUserId = 0;
         private string _currentUsername = "";
         private int _currentChatRoomId = 0;
+        private static readonly HashSet<string> ImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"
+        };
+
+        private static readonly HashSet<string> AudioExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp3", ".wav", ".aac", ".flac", ".ogg", ".m4a"
+        };
+
+        private static readonly HashSet<string> VideoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"
+        };
 
         public int CurrentUserId => _currentUserId;
         public string CurrentUsername => _currentUsername;
@@ -220,6 +235,10 @@ namespace uchat_server.Services
                     {
                         await SendResponseAsync(false, "Usage: /download <fileName>");
                     }
+                    break;
+
+                case "/download_inline":
+                    await HandleDownloadInlineAsync(parts);
                     break;
 
                 case "/edit_message":
@@ -1021,13 +1040,14 @@ namespace uchat_server.Services
                     return;
                 }
 
-                if (!Enum.TryParse<MessageType>(parts[4], out MessageType messageType))
+                if (!Enum.TryParse<MessageType>(parts[4], true, out MessageType messageType))
                 {
                     await SendResponseAsync(false, "Invalid message type");
                     return;
                 }
 
                 string fileName = parts[2];
+                var resolvedType = ResolveMessageType(fileName, messageType);
 
                 // Check if user is member of the room
                 var room = await _chatService.GetChatRoomAsync(roomId);
@@ -1071,7 +1091,7 @@ namespace uchat_server.Services
                     fileName,
                     mimeType,
                     fileSize,
-                    messageType
+                    resolvedType
                 );
 
                 if (messageDto == null)
@@ -1129,22 +1149,80 @@ namespace uchat_server.Services
 
                 await SendResponseAsync(headerResponse);
 
-                // Send file data
-                using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
-                {
-                    byte[] buffer = new byte[81920];
-                    int bytesRead;
+                const int chunkSize = 64 * 1024;
+                byte[] buffer = new byte[chunkSize];
+                int chunkIndex = 0;
 
+                using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    int bytesRead;
                     while ((bytesRead = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
-                        await _stream!.WriteAsync(buffer, 0, bytesRead);
+                        var chunkDto = new FileChunkDto
+                        {
+                            FileName = uniqueFileName,
+                            ChunkIndex = chunkIndex++,
+                            BytesLength = bytesRead,
+                            Data = Convert.ToBase64String(buffer, 0, bytesRead)
+                        };
+
+                        await SendResponseAsync(true, "FILE_TRANSFER_CHUNK", chunkDto);
                     }
-                    await _stream!.FlushAsync();
                 }
+
+                await SendResponseAsync(true, "FILE_TRANSFER_COMPLETE", new { FileName = uniqueFileName });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error handling file download");
+                await SendResponseAsync(false, "FILE_TRANSFER_FAILED", new { FileName = uniqueFileName, Reason = ex.Message });
+            }
+        }
+
+        private async Task HandleDownloadInlineAsync(string[] parts)
+        {
+            try
+            {
+                if (_currentUserId == 0)
+                {
+                    await SendResponseAsync(false, "You must login first");
+                    return;
+                }
+
+                if (parts.Length < 2)
+                {
+                    await SendResponseAsync(false, "Usage: /download_inline <fileName>");
+                    return;
+                }
+
+                var uniqueFileName = parts[1];
+                if (!_fileStorageService.FileExists(uniqueFileName))
+                {
+                    await SendResponseAsync(false, "File not found");
+                    return;
+                }
+
+                var path = _fileStorageService.GetFilePath(uniqueFileName);
+                var info = new FileInfo(path);
+                const long inlineLimit = 20 * 1024 * 1024; // 20MB cap
+                if (info.Length > inlineLimit)
+                {
+                    await SendResponseAsync(false, "File too large for inline download");
+                    return;
+                }
+
+                var bytes = await File.ReadAllBytesAsync(path);
+                var dto = new InlineFileDto
+                {
+                    FileName = uniqueFileName,
+                    Data = Convert.ToBase64String(bytes)
+                };
+
+                await SendResponseAsync(true, "INLINE_FILE", dto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling inline download");
                 await SendResponseAsync(false, $"Error: {ex.Message}");
             }
         }
@@ -1342,6 +1420,38 @@ namespace uchat_server.Services
             {
                 _logger.LogError(ex, "Error in BroadcastMessageDeleteAsync");
             }
+        }
+
+        private MessageType ResolveMessageType(string fileName, MessageType requestedType)
+        {
+            var extension = Path.GetExtension(fileName);
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                return requestedType == MessageType.Text ? MessageType.File : requestedType;
+            }
+
+            if (ImageExtensions.Contains(extension))
+            {
+                return MessageType.Image;
+            }
+
+            if (AudioExtensions.Contains(extension))
+            {
+                return MessageType.Audio;
+            }
+
+            if (VideoExtensions.Contains(extension))
+            {
+                return MessageType.Video;
+            }
+
+            return requestedType switch
+            {
+                MessageType.Image => MessageType.Image,
+                MessageType.Audio => MessageType.Audio,
+                MessageType.Video => MessageType.Video,
+                _ => MessageType.File
+            };
         }
 
         private string GetMimeType(string fileName)
