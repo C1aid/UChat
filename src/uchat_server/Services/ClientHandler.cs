@@ -562,23 +562,31 @@ namespace uchat_server.Services
         {
             try
             {
-                if (profileDto == null) return;
-
-                var profileDtoWithoutAvatar = new UserProfileDto
+                if (profileDto == null)
                 {
-                    Id = profileDto.Id,
-                    Username = profileDto.Username,
-                    DisplayName = profileDto.DisplayName,
-                    ProfileInfo = profileDto.ProfileInfo,
-                    Theme = profileDto.Theme,
-                    Avatar = null
-                };
+                    var res = await _authService.GetUserProfileAsync(userId);
+                    if (!res.Success) return;
+                    profileDto = res.GetData<UserProfileDto>();
+                }
+
+                if (profileDto != null && profileDto.Avatar == null)
+                {
+                    var res = await _authService.GetUserProfileAsync(userId);
+                    if (res.Success)
+                    {
+                        var fresh = res.GetData<UserProfileDto>();
+                        if (fresh != null)
+                        {
+                            profileDto.Avatar = fresh.Avatar;
+                        }
+                    }
+                }
 
                 var updateMessage = new ApiResponse
                 {
                     Success = true,
                     Message = "Profile updated",
-                    Data = profileDtoWithoutAvatar
+                    Data = profileDto
                 };
 
                 var allConnections = _connectionManager.GetAllConnections();

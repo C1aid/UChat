@@ -612,33 +612,91 @@ namespace uchat
         }
 
         private void ProcessProfileUpdated(JsonElement profileData)
-        {
-            try
-            {
-                var profile = JsonSerializer.Deserialize<UserProfileDto>(profileData.GetRawText());
-                if (profile == null) return;
+{
+    try
+    {
+        var json = profileData.GetRawText();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
 
-                if (profile.Id == _userSession.UserId)
-                {
-                    _userSession.UpdateFromUserProfileDto(profile);
-                    SwitchTheme(_userSession.Theme);
-                }
-                
-                UpdateChatListAvatar(profile.Id, profile.Avatar);
-                
-                if (_currentRoomId > 0)
-                {
-                    var currentChat = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
-                    if (currentChat != null && currentChat.OtherUserId == profile.Id)
-                    {
-                        UpdateProfilePanel(profile);
-                    }
-                }
-            }
-            catch
+        int userId = 0;
+        if (root.TryGetProperty("Id", out var idProp) || root.TryGetProperty("id", out idProp))
+            userId = idProp.GetInt32();
+
+        if (userId == 0) return;
+
+        byte[]? avatarBytes = null;
+        JsonElement avatarEl;
+        if (root.TryGetProperty("Avatar", out avatarEl) || root.TryGetProperty("avatar", out avatarEl))
+        {
+            if (avatarEl.ValueKind == JsonValueKind.String)
             {
+                var base64 = avatarEl.GetString();
+                if (!string.IsNullOrEmpty(base64))
+                    avatarBytes = Convert.FromBase64String(base64);
+            }
+            else if (avatarEl.ValueKind == JsonValueKind.Array)
+            {
+                avatarBytes = JsonSerializer.Deserialize<byte[]>(avatarEl.GetRawText());
             }
         }
+
+        string? displayName = null;
+        if (root.TryGetProperty("DisplayName", out var dn) || root.TryGetProperty("displayName", out dn)) 
+            displayName = dn.GetString();
+            
+        string? username = null;
+        if (root.TryGetProperty("Username", out var un) || root.TryGetProperty("username", out un)) 
+            username = un.GetString();
+            
+        string? profileInfo = null;
+        if (root.TryGetProperty("ProfileInfo", out var pi) || root.TryGetProperty("profileInfo", out pi)) 
+            profileInfo = pi.GetString();
+
+        if (userId == _userSession.UserId)
+        {
+            if (displayName != null) _userSession.DisplayName = displayName;
+            if (username != null) _userSession.Username = username;
+            if (profileInfo != null) _userSession.ProfileInfo = profileInfo;
+            if (avatarBytes != null) _userSession.Avatar = avatarBytes;
+            
+            if (root.TryGetProperty("Theme", out var th) || root.TryGetProperty("theme", out th))
+            {
+                var newTheme = th.GetString();
+                if (!string.IsNullOrEmpty(newTheme) && newTheme != _userSession.Theme)
+                {
+                    _userSession.Theme = newTheme;
+                    SwitchTheme(newTheme);
+                }
+            }
+        }
+
+        UpdateChatListAvatar(userId, avatarBytes);
+
+        if (_currentRoomId > 0)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                var currentChat = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
+                if (currentChat != null && !currentChat.IsGroup && currentChat.OtherUserId == userId)
+                {
+                    var profileDto = new UserProfileDto
+                    {
+                        Id = userId,
+                        DisplayName = displayName ?? "",
+                        Username = username ?? "",
+                        ProfileInfo = profileInfo ?? "",
+                        Avatar = avatarBytes
+                    };
+                    UpdateProfilePanel(profileDto);
+                }
+            });
+        }
+    }
+    catch 
+    { 
+    }
+}
 
         private void ProcessLoginResponse(JsonElement loginData)
         {
@@ -2236,35 +2294,46 @@ namespace uchat
         }
 
         private void UpdateChatListAvatar(int userId, byte[]? avatarData)
+{
+    try
+    {
+        _ = Dispatcher.InvokeAsync(() =>
         {
-            try
+            var existingChat = ChatList.FirstOrDefault(c => c.OtherUserId == userId && !c.IsGroup);
+
+            if (existingChat != null)
             {
-                _ = Dispatcher.InvokeAsync(() =>
+                var newChatObj = new ChatInfoDto
                 {
-                    var chat = ChatList.FirstOrDefault(c => c.OtherUserId == userId && !c.IsGroup);
-                    if (chat != null && avatarData != null)
-                    {
-                        int savedUnreadCount = chat.UnreadCount;
-                        
-                        chat.Avatar = avatarData;
-                        
-                        chat.UnreadCount = savedUnreadCount;
-                        
-                        var index = ChatList.IndexOf(chat);
-                        if (index >= 0)
-                        {
-                            ChatList.RemoveAt(index);
-                            ChatList.Insert(index, chat);
-                        }
-                        
-                        EnsureCorrectItemsSource();
-                    }
-                });
+                    Id = existingChat.Id,
+                    Name = existingChat.Name,
+                    DisplayName = existingChat.DisplayName,
+                    IsGroup = existingChat.IsGroup,
+                    Description = existingChat.Description,
+                    OtherUserId = existingChat.OtherUserId,
+                    OtherUsername = existingChat.OtherUsername,
+                    CreatedAt = existingChat.CreatedAt,
+                    UnreadCount = existingChat.UnreadCount,
+                    LastMessage = existingChat.LastMessage,
+                    LastMessageTime = existingChat.LastMessageTime,
+                    
+                    Avatar = avatarData
+                };
+
+                var index = ChatList.IndexOf(existingChat);
+                if (index >= 0)
+                {
+                    ChatList[index] = newChatObj;
+                }
+
+                EnsureCorrectItemsSource();
             }
-            catch
-            {
-            }
-        }
+        });
+    }
+    catch
+    {
+    }
+}
 
         private void SetDefaultAvatarGradient(System.Windows.Shapes.Ellipse? ellipse = null)
         {
