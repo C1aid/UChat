@@ -122,7 +122,12 @@ namespace uchat.Views
                     
                     if (updatedProfile != null)
                     {
+                        var savedAvatar = _newAvatar;
                         _userSession.UpdateFromUserProfileDto(updatedProfile);
+                        if (savedAvatar != null)
+                        {
+                            _userSession.Avatar = savedAvatar;
+                        }
                         UpdateAvatarDisplay();
                         _newAvatar = null;
                         
@@ -213,7 +218,6 @@ namespace uchat.Views
                 DeleteAccountButton.Content = "Deleting...";
                 DeleteAccountButton.IsEnabled = false;
 
-                // Mark disconnect as intentional to prevent connection lost notification
                 _network.MarkIntentionalDisconnect();
 
                 try

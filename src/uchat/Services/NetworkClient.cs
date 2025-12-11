@@ -32,7 +32,6 @@ namespace uchat.Services
             PropertyNameCaseInsensitive = true
         };
 
-        // Reconnection support
         private string? _serverIp;
         private int _serverPort;
         private string? _savedUsername;
@@ -51,10 +50,6 @@ namespace uchat.Services
         public event Action? Reconnecting;
         public event Action? Reconnected;
 
-        /// <summary>
-        /// Marks the next disconnect as intentional to prevent connection lost notification.
-        /// Use this before operations that will cause disconnection (e.g., account deletion).
-        /// </summary>
         public void MarkIntentionalDisconnect()
         {
             _isIntentionalDisconnect = true;
@@ -71,7 +66,6 @@ namespace uchat.Services
                     return true;
                 }
 
-                // Save connection info for reconnection
                 _serverIp = ip;
                 _serverPort = port;
                 if (!string.IsNullOrEmpty(username))
@@ -86,7 +80,6 @@ namespace uchat.Services
                 _reader = new StreamReader(_stream, Encoding.UTF8);
                 _writer = new StreamWriter(_stream, Encoding.UTF8) { AutoFlush = true };
 
-                // Reset intentional disconnect flag on successful connection
                 _isIntentionalDisconnect = false;
 
                 return true;
@@ -191,12 +184,10 @@ namespace uchat.Services
 
         private void OnConnectionLost()
         {
-            // Stop listening
             _isListening = false;
             _listeningCts?.Cancel();
             _isBackgroundListeningStarted = false;
 
-            // Clean up connection
             try
             {
                 _writer?.Close();
@@ -213,14 +204,12 @@ namespace uchat.Services
             _stream = null;
             _client = null;
 
-            // Don't notify about connection loss if it was intentional (e.g., account deletion)
             if (_isIntentionalDisconnect)
             {
                 _isIntentionalDisconnect = false;
                 return;
             }
 
-            // Notify about connection loss
             if (Application.Current?.Dispatcher != null)
             {
                 _ = Application.Current.Dispatcher.InvokeAsync(() =>
@@ -233,7 +222,6 @@ namespace uchat.Services
                 ConnectionLost?.Invoke();
             }
 
-            // Start reconnection if enabled
             if (_autoReconnectEnabled && !string.IsNullOrEmpty(_serverIp) && _serverPort > 0)
             {
                 _ = Task.Run(async () => await AttemptReconnectionAsync());
@@ -253,7 +241,6 @@ namespace uchat.Services
 
             try
             {
-                // Notify about reconnection attempt
                 if (Application.Current?.Dispatcher != null)
                 {
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
@@ -267,24 +254,21 @@ namespace uchat.Services
                 }
 
                 const int maxAttempts = 10;
-                const int delayBetweenAttempts = 3000; // 3 seconds
+                const int delayBetweenAttempts = 3000; 
                 int attempt = 0;
 
                 while (attempt < maxAttempts && !_reconnectCts.Token.IsCancellationRequested)
                 {
                     attempt++;
 
-                    // Try to reconnect
                     bool connected = await ConnectAsync(_serverIp!, _serverPort);
                     
                     if (connected)
                     {
-                        // Re-authenticate if credentials are saved
                         if (!string.IsNullOrEmpty(_savedUsername) && !string.IsNullOrEmpty(_savedPassword))
                         {
                             await SendMessageAsync($"/login {_savedUsername} {_savedPassword}");
                             
-                            // Wait for login response (skip welcome message)
                             int responseCount = 0;
                             while (responseCount < 5)
                             {
@@ -299,10 +283,8 @@ namespace uchat.Services
                                     {
                                         if (apiResponse.Success)
                                         {
-                                            // Login successful, restart listening
                                             StartBackgroundListening();
                                             
-                                            // Notify about successful reconnection
                                             if (Application.Current?.Dispatcher != null)
                                             {
                                                 _ = Application.Current.Dispatcher.InvokeAsync(() =>
@@ -323,7 +305,6 @@ namespace uchat.Services
                                         }
                                         else
                                         {
-                                            // Login failed, break and retry
                                             break;
                                         }
                                     }
@@ -335,7 +316,6 @@ namespace uchat.Services
                         }
                         else
                         {
-                            // No credentials, just restart listening
                             StartBackgroundListening();
                             
                             if (Application.Current?.Dispatcher != null)
@@ -358,8 +338,6 @@ namespace uchat.Services
                         }
                     }
 
-                    // If we get here, connection failed or login failed
-                    // Wait before next attempt
                     if (attempt < maxAttempts)
                     {
                         await Task.Delay(delayBetweenAttempts, _reconnectCts.Token);
@@ -368,11 +346,11 @@ namespace uchat.Services
             }
             catch (OperationCanceledException)
             {
-                // Reconnection was cancelled
+
             }
             catch
             {
-                // Ignore errors during reconnection
+
             }
             finally
             {
@@ -630,12 +608,12 @@ namespace uchat.Services
         {
             if (!IsConnected || _writer == null || _stream == null)
             {
-                return new ApiResponse { Success = false, Message = "Нет подключения к серверу" };
+                return new ApiResponse { Success = false, Message = "No connection to server" };
             }
 
             if (!File.Exists(filePath))
             {
-                return new ApiResponse { Success = false, Message = "Файл не найден" };
+                return new ApiResponse { Success = false, Message = "File not found" };
             }
 
             await _writeSemaphore.WaitAsync();
@@ -713,7 +691,7 @@ namespace uchat.Services
         {
             if (!IsConnected || _writer == null)
             {
-                return (false, "Нет подключения", null);
+                return (false, "No connection", null);
             }
 
             await _writeSemaphore.WaitAsync();
@@ -725,13 +703,13 @@ namespace uchat.Services
                 var responseJson = await ReceiveMessageAsync(15000);
                 if (string.IsNullOrEmpty(responseJson))
                 {
-                    return (false, "Нет ответа от сервера", null);
+                    return (false, "No response from server", null);
                 }
 
                 var response = DeserializeApiResponse(responseJson);
                 if (!response.Success)
                 {
-                    return (false, response.Message ?? "Загрузка отклонена", null);
+                    return (false, response.Message ?? "Download rejected", null);
                 }
 
                 if (response.Data is JsonElement element)
@@ -754,7 +732,7 @@ namespace uchat.Services
                     }
                 }
 
-                return (false, "Неверный формат ответа сервера", null);
+                return (false, "Invalid server response format", null);
             }
             catch (Exception ex)
             {
@@ -770,10 +748,8 @@ namespace uchat.Services
         {
             try
             {
-                // Mark as intentional disconnect to prevent connection lost notification
                 _isIntentionalDisconnect = true;
 
-                // Disable auto-reconnect when manually disconnecting
                 _autoReconnectEnabled = false;
                 CancelReconnection();
 
@@ -875,7 +851,7 @@ namespace uchat.Services
             }
             catch (Exception ex)
             {
-                FinalizeDownloadSession(metadata.FileName, session, false, $"Не удалось подготовить файл: {ex.Message}");
+                FinalizeDownloadSession(metadata.FileName, session, false, $"Failed to prepare file: {ex.Message}");
             }
 
             return true;
@@ -914,7 +890,7 @@ namespace uchat.Services
             }
             catch (Exception ex)
             {
-                FinalizeDownloadSession(chunk.FileName, session, false, $"Ошибка записи файла: {ex.Message}");
+                FinalizeDownloadSession(chunk.FileName, session, false, $"File write error: {ex.Message}");
             }
 
             return true;
@@ -954,7 +930,7 @@ namespace uchat.Services
                 return true;
             }
 
-            FinalizeDownloadSession(fileName, session, true, "Файл загружен успешно.");
+            FinalizeDownloadSession(fileName, session, true, "File downloaded successfully.");
             return true;
         }
 
@@ -998,7 +974,7 @@ namespace uchat.Services
                 return true;
             }
 
-            FinalizeDownloadSession(fileName, session, false, reason ?? "Загрузка отменена сервером.");
+            FinalizeDownloadSession(fileName, session, false, reason ?? "Download cancelled by server.");
             return true;
         }
 
@@ -1085,7 +1061,7 @@ namespace uchat.Services
                     _stream?.Dispose();
                     if (_expectedSize > 0 && _received != _expectedSize)
                     {
-                        Completion.TrySetResult((false, "Размер файла не совпадает с ожидаемым."));
+                        Completion.TrySetResult((false, "File size does not match expected size."));
                         return;
                     }
 
@@ -1128,13 +1104,13 @@ namespace uchat.Services
         {
             if (!IsConnected || _writer == null)
             {
-                return (false, "Нет подключения к серверу.");
+                return (false, "No connection to server.");
             }
 
             var session = new FileDownloadSession(uniqueFileName, destinationPath);
             if (!_fileDownloads.TryAdd(uniqueFileName, session))
             {
-                return (false, "Загрузка этого файла уже выполняется.");
+                return (false, "Download of this file is already in progress.");
             }
 
             try
@@ -1146,7 +1122,7 @@ namespace uchat.Services
             catch (Exception ex)
             {
                 _fileDownloads.TryRemove(uniqueFileName, out _);
-                session.Fail($"Не удалось отправить команду скачивания: {ex.Message}");
+                session.Fail($"Failed to send download command: {ex.Message}");
                 return await session.Completion.Task;
             }
             finally
@@ -1161,7 +1137,7 @@ namespace uchat.Services
             {
                 if (_fileDownloads.TryRemove(uniqueFileName, out var pendingSession))
                 {
-                    pendingSession.Fail("Загрузка прервана по таймауту.");
+                    pendingSession.Fail("Download interrupted due to timeout.");
                 }
 
                 return await session.Completion.Task;
@@ -1251,7 +1227,6 @@ namespace uchat.Services
             return fileName.Replace(' ', '_');
         }
 
-        // Методы для работы с группами
         public async Task<ApiResponse?> CreateGroupAsync(string groupName)
         {
             if (!IsConnected || _writer == null || _reader == null)

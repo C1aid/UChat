@@ -820,6 +820,33 @@
                     </Grid.ColumnDefinitions>
 
                     <Grid Grid.Column="0" Width="50" Height="50" Margin="0,0,12,0" VerticalAlignment="Center">
+                       <Viewbox Width="50" Height="50" VerticalAlignment="Center">
+    <Viewbox.Style>
+        <Style TargetType="Viewbox">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsGroup}" Value="True">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Viewbox.Style>
+
+    <Path Fill="{DynamicResource ForegroundPrimaryBrush}">
+        <Path.Effect>
+            <DropShadowEffect BlurRadius="10" ShadowDepth="3" Color="#FFFFFF" Opacity="0.6" Direction="225"/>
+        </Path.Effect>
+        <Path.Data>
+            <GeometryGroup>
+                <PathGeometry Figures="M 128,0 A 128,128 0 1 1 128,256 A 128,128 0 1 1 128,0 Z 
+                                       M 128,16 A 112,112 0 1 0 128,240 A 112,112 0 1 0 128,16 Z" 
+                              FillRule="EvenOdd"/>
+                <PathGeometry Figures="M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1-7.37-4.89,8,8,0,0,1,0-6.22A8,8,0,0,1,192,112a24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.84,8,57,57,0,0,0-98.16,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z" />
+            </GeometryGroup>
+        </Path.Data>
+    </Path>
+</Viewbox>
+                        <!-- User Avatar -->
                         <Ellipse Width="50" Height="50" VerticalAlignment="Center">
                             <Ellipse.Fill>
                                 <Binding Path="Avatar" Converter="{StaticResource AvatarToBrushConverter}">
@@ -838,6 +865,16 @@
                                 <SolidColorBrush Color="#FFFFFF" Opacity="0.3"/>
                             </Ellipse.Stroke>
                             <Ellipse.StrokeThickness>2</Ellipse.StrokeThickness>
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsGroup}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
                         </Ellipse>
                     </Grid>
 
@@ -976,7 +1013,6 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Avatar (скрыт для групповых чатов) -->
                             <Ellipse Grid.Column="0" 
                                      x:Name="ChatHeaderAvatar"
                                      Width="100" 
@@ -1155,7 +1191,7 @@
                                                 Background="#66000000"
                                                 Padding="20"
                                                 CornerRadius="12">
-                                            <TextBlock Text="Загружается превью..."
+                                            <TextBlock Text="Loading preview..."
                                                        Foreground="White"
                                                        FontWeight="SemiBold"
                                                        HorizontalAlignment="Center"/>
@@ -1222,7 +1258,7 @@
                                                 Background="#66000000"
                                                 Padding="20"
                                                 CornerRadius="12">
-                                            <TextBlock Text="Видео загружается..."
+                                            <TextBlock Text="Video loading..."
                                                        Foreground="White"
                                                        FontWeight="SemiBold"
                                                        HorizontalAlignment="Center"/>
@@ -1250,11 +1286,11 @@
                                                    FontSize="12"
                                                    Margin="0,2,0,6"/>
                                         <StackPanel Orientation="Horizontal">
-                                            <Button Content="Открыть"
+                                            <Button Content="Open"
                                                     Padding="12,4"
                                                     Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
                                                     Click="OpenAttachmentButton_Click"/>
-                                            <Button Content="Скачать"
+                                            <Button Content="Download"
                                                     Padding="12,4"
                                                     Margin="8,0,0,0"
                                                     Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
@@ -1317,7 +1353,7 @@
                                                 Background="#33000000"
                                                 Padding="20"
                                                 CornerRadius="12">
-                                            <TextBlock Text="Подготавливаем превью..."
+                                            <TextBlock Text="Preparing preview..."
                                                        Foreground="White"
                                                        FontWeight="SemiBold"
                                                        HorizontalAlignment="Center"/>
@@ -1384,7 +1420,7 @@
                                                 Background="#33000000"
                                                 Padding="20"
                                                 CornerRadius="12">
-                                            <TextBlock Text="Видео готовится..."
+                                            <TextBlock Text="Video preparing..."
                                                        Foreground="White"
                                                        FontWeight="SemiBold"
                                                        HorizontalAlignment="Center"/>
@@ -1412,11 +1448,11 @@
                                                    FontSize="12"
                                                    Margin="0,2,0,6"/>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                            <Button Content="Открыть"
+                                            <Button Content="Open"
                                                     Padding="12,4"
                                                     Visibility="{Binding LocalFilePath, Converter={StaticResource LocalFileVisibilityConverter}}"
                                                     Click="OpenAttachmentButton_Click"/>
-                                            <Button Content="Скачать"
+                                            <Button Content="Download"
                                                     Padding="12,4"
                                                     Margin="8,0,0,0"
                                                     Visibility="{Binding LocalFilePath, Converter={StaticResource MissingLocalFileVisibilityConverter}}"
@@ -1503,7 +1539,7 @@
                                     Margin="0,0,12,0"
                                     VerticalAlignment="Center"
                                     Click="AttachmentButton_Click"
-                                    ToolTip="Отправить файл">
+                                    ToolTip="Send file">
                                 <Viewbox Width="30" Height="30" Stretch="Uniform">
                                     <Canvas Width="256" Height="256">
                                         <Path Data="M209.66,122.34a8,8,0,0,1,0,11.32l-82.05,82a56,56,0,0,1-79.2-79.21L147.67,35.73a40,40,0,1,1,56.61,56.55L105,193A24,24,0,1,1,71,159L154.3,74.38A8,8,0,1,1,165.7,85.6L82.39,170.31a8,8,0,1,0,11.27,11.36L192.93,81A24,24,0,1,0,159,47L59.76,147.68a40,40,0,1,0,56.53,56.62l82.06-82A8,8,0,0,1,209.66,122.34Z"
@@ -1703,24 +1739,6 @@
                           VerticalScrollBarVisibility="Auto" 
                           Padding="30">
                 <StackPanel>
-                    <!-- Group Picture -->
-                    <Ellipse x:Name="GroupAvatar"
-                             Width="120"
-                             Height="120"
-                             HorizontalAlignment="Center"
-                             Margin="0,20,0,30">
-                        <Ellipse.Fill>
-                            <Binding Path="GroupAvatarData" Converter="{StaticResource AvatarToBrushConverter}">
-                                <Binding.FallbackValue>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#8B7355" Offset="0"/>
-                                        <GradientStop Color="#A68B6B" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Binding.FallbackValue>
-                            </Binding>
-                        </Ellipse.Fill>
-                    </Ellipse>
-
                     <!-- Group Name -->
                     <StackPanel Margin="0,0,0,20">
                         <TextBlock Text="Group name"
@@ -1802,34 +1820,16 @@
                                         CornerRadius="12"
                                         Padding="12,10"
                                         Margin="0,0,0,8">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Ellipse Width="40" Height="40" Grid.Column="0" Margin="0,0,12,0">
-                                            <Ellipse.Fill>
-                                                <Binding Path="Avatar" Converter="{StaticResource AvatarToBrushConverter}">
-                                                    <Binding.FallbackValue>
-                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                            <GradientStop Color="{DynamicResource AccentColor}" Offset="0"/>
-                                                            <GradientStop Color="#A68B6B" Offset="1"/>
-                                                        </LinearGradientBrush>
-                                                    </Binding.FallbackValue>
-                                                </Binding>
-                                            </Ellipse.Fill>
-                                        </Ellipse>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
-                                            <TextBlock Text="{Binding Username}"
-                                                       FontSize="12"
-                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
-                                                       Opacity="0.8"/>
-                                        </StackPanel>
-                                    </Grid>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                        <TextBlock Text="{Binding Username}"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                   Opacity="0.8"/>
+                                    </StackPanel>
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

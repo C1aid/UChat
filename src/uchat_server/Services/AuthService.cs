@@ -33,7 +33,6 @@ namespace uchat_server.Services
                     return new ApiResponse { Success = false, Message = "Username already exists" };
                 }
 
-                // Убеждаемся, что все обязательные поля заполнены
                 if (string.IsNullOrEmpty(displayName))
                 {
                     displayName = username;
@@ -44,8 +43,8 @@ namespace uchat_server.Services
                     Username = username,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                     DisplayName = displayName,
-                    ProfileInfo = "", // Обязательное поле должно быть заполнено
-                    Theme = "Latte", // Устанавливаем значение по умолчанию
+                    ProfileInfo = "",
+                    Theme = "Latte",
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -59,7 +58,6 @@ namespace uchat_server.Services
 
                 _logger.LogInformation("User registered successfully: {Username} with ID: {UserId}", username, user.Id);
 
-                // Возвращаем UserProfileDto для совместимости с клиентом
                 var userProfileDto = new UserProfileDto
                 {
                     Id = user.Id,
@@ -111,8 +109,6 @@ namespace uchat_server.Services
 
                 _logger.LogInformation("Login successful for user: {Username}", username);
 
-                // Возвращаем UserProfileDto для совместимости с клиентом
-                // Обрабатываем null значения для безопасности
                 var userProfileDto = new UserProfileDto
                 {
                     Id = user.Id,
@@ -123,11 +119,9 @@ namespace uchat_server.Services
                     Avatar = user.Avatar,
                 };
                 
-                // Проверяем, что Username не пустой (критично для работы)
                 if (string.IsNullOrEmpty(userProfileDto.Username))
                 {
                     _logger.LogError("User {UserId} has empty Username in database!", user.Id);
-                    // Пытаемся восстановить из других полей или используем ID
                     userProfileDto.Username = $"user_{user.Id}";
                 }
                 
@@ -154,7 +148,6 @@ namespace uchat_server.Services
             return await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
         }
 
-        // НОВЫЕ МЕТОДЫ (адаптированные под существующие DTO)
         public async Task<ApiResponse> UpdateUserProfileAsync(int userId, UpdateProfileRequest request)
         {
             try
@@ -176,10 +169,8 @@ namespace uchat_server.Services
 
                 bool hasChanges = false;
 
-                // Обновляем только предоставленные поля
                 if (!string.IsNullOrEmpty(request.Username) && request.Username != user.Username)
                 {
-                    // Проверяем, не занят ли новый username
                     bool usernameExists = await _context.Users.AnyAsync(u => u.Username == request.Username && u.Id != userId);
                     if (usernameExists)
                     {
@@ -198,8 +189,6 @@ namespace uchat_server.Services
                     _logger.LogInformation("Updated DisplayName to: {DisplayName}", request.DisplayName);
                 }
 
-                // ProfileInfo может быть пустым, поэтому обновляем всегда, если поле предоставлено
-                // (проверяем, что это не null, чтобы отличить от случая, когда поле не было отправлено)
                 if (request.ProfileInfo != null && request.ProfileInfo != user.ProfileInfo)
                 {
                     user.ProfileInfo = request.ProfileInfo;
@@ -214,7 +203,6 @@ namespace uchat_server.Services
                     _logger.LogInformation("Updated Theme to: {Theme}", request.Theme);
                 }
 
-                // Avatar обновляем только если предоставлен новый (не null)
                 if (request.Avatar != null)
                 {
                     user.Avatar = request.Avatar;
@@ -233,7 +221,6 @@ namespace uchat_server.Services
                     _logger.LogInformation("No changes detected for user: {UserId}", userId);
                 }
 
-                // Возвращаем UserProfileDto для совместимости
                 var userProfileDto = new UserProfileDto
                 {
                     Id = user.Id,
@@ -241,7 +228,7 @@ namespace uchat_server.Services
                     DisplayName = user.DisplayName ?? string.Empty,
                     ProfileInfo = user.ProfileInfo ?? string.Empty,
                     Theme = user.Theme ?? "Latte",
-                    Avatar = user.Avatar,
+                    Avatar = null,
                 };
 
                 return new ApiResponse
@@ -264,14 +251,12 @@ namespace uchat_server.Services
             {
                 _logger.LogInformation("Deleting account for user ID: {UserId}", userId);
 
-                // Проверяем, что userId валидный
                 if (userId <= 0)
                 {
                     _logger.LogWarning("Invalid userId for deletion: {UserId}", userId);
                     return new ApiResponse { Success = false, Message = "Invalid user ID" };
                 }
 
-                // Получаем пользователя для проверки (используем AsNoTracking для чтения)
                 var user = await _context.Users
                     .AsNoTracking()
                     .FirstOrDefaultAsync(u => u.Id == userId);
@@ -284,13 +269,11 @@ namespace uchat_server.Services
 
                 _logger.LogInformation("Found user to delete: Id={UserId}, Username={Username}", userId, user.Username);
 
-                // Подсчитываем количество сообщений пользователя перед удалением
                 var messageCount = await _context.Messages
                     .Where(m => m.UserId == userId)
                     .CountAsync();
                 _logger.LogInformation("Deleting {MessageCount} messages for user {UserId}", messageCount, userId);
 
-                // Удаляем все сообщения пользователя напрямую через запрос
                 var userMessages = await _context.Messages
                     .Where(m => m.UserId == userId)
                     .ToListAsync();
@@ -300,13 +283,11 @@ namespace uchat_server.Services
                     _context.Messages.RemoveRange(userMessages);
                 }
 
-                // Подсчитываем количество членств в чатах
                 var membershipCount = await _context.ChatRoomMembers
                     .Where(crm => crm.UserId == userId)
                     .CountAsync();
                 _logger.LogInformation("Deleting {MembershipCount} chat memberships for user {UserId}", membershipCount, userId);
 
-                // Удаляем пользователя из чатов напрямую через запрос
                 var chatMemberships = await _context.ChatRoomMembers
                     .Where(crm => crm.UserId == userId)
                     .ToListAsync();
@@ -316,11 +297,9 @@ namespace uchat_server.Services
                     _context.ChatRoomMembers.RemoveRange(chatMemberships);
                 }
 
-                // Проверяем количество пользователей перед удалением
                 var totalUsersBefore = await _context.Users.CountAsync();
                 _logger.LogInformation("Total users in database before deletion: {TotalUsers}", totalUsersBefore);
 
-                // Удаляем самого пользователя (загружаем заново для отслеживания)
                 var userToDelete = await _context.Users.FindAsync(userId);
                 if (userToDelete != null)
                 {
@@ -329,7 +308,6 @@ namespace uchat_server.Services
 
                 await _context.SaveChangesAsync();
 
-                // Проверяем количество пользователей после удаления
                 var totalUsersAfter = await _context.Users.CountAsync();
                 _logger.LogInformation("Total users in database after deletion: {TotalUsers}", totalUsersAfter);
                 _logger.LogInformation("Account deleted successfully for user: {UserId} (Username: {Username}). Deleted {MessageCount} messages and {MembershipCount} memberships.", 
@@ -344,7 +322,6 @@ namespace uchat_server.Services
             catch (DbUpdateConcurrencyException ex)
             {
                 _logger.LogWarning(ex, "Concurrency exception when deleting account for user ID: {UserId}. User may have already been deleted.", userId);
-                // Проверяем, действительно ли пользователь был удален
                 var stillExists = await _context.Users.AnyAsync(u => u.Id == userId);
                 if (!stillExists)
                 {

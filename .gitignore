@@ -1,8 +1,40 @@
-## --- Сборка и временные файлы ---
 [Bb]in/
 [Oo]bj/
 
-## --- Visual Studio и VS Code ---
+/uchat.exe
+/uchat
+/uchat.dll
+/uchat.pdb
+/uchat.runtimeconfig.json
+/uchat.deps.json
+/uchat_server.exe
+/uchat_server
+/uchat_server.dll
+/uchat_server.pdb
+/uchat_server.runtimeconfig.json
+/uchat_server.deps.json
+/Uchat.Shared.dll
+/Uchat.Shared.pdb
+/Uchat.Shared.deps.json
+
+/*.dll
+!src/**/*.dll
+
+/cs/
+/de/
+/es/
+/fr/
+/it/
+/ja/
+/ko/
+/pl/
+/pt-BR/
+/ru/
+/tr/
+/zh-Hans/
+/zh-Hant/
+/runtimes/
+
 .vs/
 .vscode/
 *.user
@@ -10,30 +42,26 @@
 *.userprefs
 *.launchsettings.json
 
-## --- Базы данных и логи ---
 *.db
 *.sqlite
 *.log
 *.mdf
 *.ldf
 
-## --- Секреты и локальные настройки ---
-# appsettings.Development.json часто содержит пароли, лучше его игнорировать
+Storage/
+
 appsettings.Development.json
-# Если у вас есть secrets.json
+
 secrets.json
 
-## --- OS ---
 .DS_Store
 Thumbs.db
 
-## --- NuGet ---
 .nuget/
 packages/
 *.nupkg
 *.snupkg
 project.assets.json
 
-## --- Другое ---
 *.tmp
 *~

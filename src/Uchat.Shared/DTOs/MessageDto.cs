@@ -17,12 +17,11 @@ namespace Uchat.Shared.DTOs
         public byte[]? Avatar { get; set; }
         public string FileUrl { get; set; } = string.Empty;
         public string FileName { get; set; } = string.Empty;
-        public string MimeType { get; set; } = string.Empty; // e.g., "image/png", "application/pdf"
+        public string MimeType { get; set; } = string.Empty;
         public long FileSize { get; set; }
         [JsonIgnore]
         public string? LocalFilePath { get; set; }
 
-        //   ,   SenderId
         public int SenderId => UserId;
     }
 }

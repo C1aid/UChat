@@ -12,7 +12,6 @@ namespace Uchat.Shared.DTOs
         {
             if (Data is JsonElement jsonElement)
             {
-                // Используем опции для case-insensitive десериализации
                 var options = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,

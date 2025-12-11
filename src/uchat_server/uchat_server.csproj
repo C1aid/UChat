@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>uchat_server</RootNamespace>
+    <OutputPath Condition="'$(Configuration)' == 'Release'">$(MSBuildThisFileDirectory)..\..\bin\Release\</OutputPath>
+    <OutputPath Condition="'$(Configuration)' != 'Release'">$(MSBuildThisFileDirectory)..\..\bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath Condition="'$(Configuration)' == 'Release'">false</AppendTargetFrameworkToOutputPath>
+    <AssemblyName>uchat_server</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,5 +38,23 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="CopyExecutableToRoot" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).exe" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName)" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).dll" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).runtimeconfig.json" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).deps.json" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).pdb" />
+      <FilesToCopy Include="$(OutputPath)appsettings.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FilesToCopy)" DestinationFolder="$(MSBuildThisFileDirectory)..\..\" SkipUnchangedFiles="true" Condition="Exists('%(FilesToCopy.Identity)')" />
+    <!-- Copy only DLL files (not folders) -->
+    <ItemGroup>
+      <DllFiles Include="$(OutputPath)*.dll" Exclude="$(OutputPath)$(AssemblyName).dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DllFiles)" DestinationFolder="$(MSBuildThisFileDirectory)..\..\" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

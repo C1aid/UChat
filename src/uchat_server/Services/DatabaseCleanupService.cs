@@ -16,9 +16,6 @@ namespace uchat_server.Services
             _logger = logger;
         }
 
-        /// <summary>
-        /// Очищает старые сообщения (старше указанного количества дней)
-        /// </summary>
         public async Task<int> CleanupOldMessages(int daysToKeep = 90)
         {
             try
@@ -45,26 +42,20 @@ namespace uchat_server.Services
             }
         }
 
-        /// <summary>
-        /// Очищает пустые чаты (без сообщений и участников)
-        /// </summary>
         public async Task<int> CleanupEmptyChatRooms()
         {
             try
             {
-                // Получаем ID чатов, которые имеют сообщения
                 var roomsWithMessages = await _context.Messages
                     .Select(m => m.ChatRoomId)
                     .Distinct()
                     .ToListAsync();
 
-                // Получаем ID чатов, которые имеют участников
                 var roomsWithMembers = await _context.ChatRoomMembers
                     .Select(crm => crm.ChatRoomId)
                     .Distinct()
                     .ToListAsync();
 
-                // Находим чаты без сообщений и без участников
                 var emptyRooms = await _context.ChatRooms
                     .Where(r => !roomsWithMessages.Contains(r.Id) && !roomsWithMembers.Contains(r.Id))
                     .ToListAsync();
@@ -86,9 +77,6 @@ namespace uchat_server.Services
             }
         }
 
-        /// <summary>
-        /// Исправляет некорректные данные пользователей (null значения)
-        /// </summary>
         public async Task<int> FixInvalidUserData()
         {
             try
@@ -145,9 +133,6 @@ namespace uchat_server.Services
             }
         }
 
-        /// <summary>
-        /// Выполняет полную очистку БД
-        /// </summary>
         public async Task<CleanupResult> PerformFullCleanup(int messageRetentionDays = 90)
         {
             var result = new CleanupResult();
@@ -156,13 +141,10 @@ namespace uchat_server.Services
             {
                 _logger.LogInformation("Starting database cleanup...");
 
-                // Исправляем некорректные данные пользователей
                 result.FixedUsers = await FixInvalidUserData();
 
-                // Очищаем старые сообщения
                 result.DeletedMessages = await CleanupOldMessages(messageRetentionDays);
 
-                // Очищаем пустые чаты
                 result.DeletedChatRooms = await CleanupEmptyChatRooms();
 
                 _logger.LogInformation("Database cleanup completed: Fixed {FixedUsers} users, Deleted {DeletedMessages} messages, Deleted {DeletedChatRooms} chat rooms",

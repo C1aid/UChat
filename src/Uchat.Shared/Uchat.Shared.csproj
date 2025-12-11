@@ -4,6 +4,9 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <OutputPath Condition="'$(Configuration)' == 'Release'">$(MSBuildThisFileDirectory)..\..\bin\Release\</OutputPath>
+    <OutputPath Condition="'$(Configuration)' != 'Release'">$(MSBuildThisFileDirectory)..\..\bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath Condition="'$(Configuration)' == 'Release'">false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
 </Project>

@@ -85,27 +85,23 @@ namespace uchat_server.Services
                                                    (socketEx.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionReset ||
                                                     socketEx.SocketErrorCode == System.Net.Sockets.SocketError.Shutdown))
             {
-                // Нормальное закрытие соединения клиентом
                 _logger.LogInformation("Client disconnected normally: {Message}", ex.Message);
             }
-            catch (System.IO.IOException ex) when (ex.Message.Contains("разорвала установленное подключение") || 
+            catch (System.IO.IOException ex) when (ex.Message.Contains("An existing connection was forcibly closed") || 
                                                    ex.Message.Contains("broken pipe") ||
                                                    ex.Message.Contains("connection reset"))
             {
-                // Нормальное закрытие соединения клиентом (альтернативная проверка для русской локали)
                 _logger.LogInformation("Client disconnected: connection closed by client");
             }
             catch (System.Net.Sockets.SocketException ex) when (ex.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionReset ||
                                                                ex.SocketErrorCode == System.Net.Sockets.SocketError.Shutdown ||
                                                                ex.SocketErrorCode == System.Net.Sockets.SocketError.Interrupted)
             {
-                // Нормальное закрытие соединения клиентом
                 _logger.LogInformation("Client disconnected normally: {SocketError}", ex.SocketErrorCode);
             }
             catch (Exception ex)
             {
-                // Проверяем, не является ли это ошибкой разрыва соединения
-                if (ex.Message.Contains("разорвала установленное подключение") || 
+                if (ex.Message.Contains("An existing connection was forcibly closed") || 
                     ex.Message.Contains("broken pipe") ||
                     ex.Message.Contains("connection reset") ||
                     (ex.InnerException is System.Net.Sockets.SocketException se && 
@@ -158,7 +154,7 @@ namespace uchat_server.Services
                 case "/register":
                     if (parts.Length == 3)
                     {
-                        await RegisterUserAsync(parts[1], parts[2], parts[1]); // Используем username как displayName по умолчанию
+                        await RegisterUserAsync(parts[1], parts[2], parts[1]);
                     }
                     else if (parts.Length == 4)
                     {
@@ -329,7 +325,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Объединяем все части после команды обратно в JSON
                 var json = string.Join(" ", parts.Skip(1));
                 _logger.LogInformation("Received update profile JSON: {Json}", json);
                 
@@ -360,12 +355,10 @@ namespace uchat_server.Services
 
                 if (response.Success)
                 {
-                    // Используем GetData<T>() для получения UserProfileDto
                     var userProfileDto = response.GetData<UserProfileDto>();
                     
                     if (userProfileDto == null && response.Data is JsonElement jsonElement)
                     {
-                        // Fallback на прямую десериализацию
                         userProfileDto = JsonSerializer.Deserialize<UserProfileDto>(jsonElement.GetRawText());
                     }
                     
@@ -396,7 +389,6 @@ namespace uchat_server.Services
                 
                 var response = await _authService.DeleteUserAccountAsync(userIdToDelete);
                 
-                // Отправляем ответ и явно сбрасываем буфер, чтобы убедиться, что ответ отправлен
                 await SendResponseAsync(response);
                 if (_writer != null)
                 {
@@ -405,19 +397,15 @@ namespace uchat_server.Services
 
                 if (response.Success)
                 {
-                    // Сохраняем userId и chatRoomId перед сбросом
                     int userId = _currentUserId;
                     int chatRoomId = _currentChatRoomId;
                     
-                    // Сбрасываем текущего пользователя после сохранения значений
                     _currentUserId = 0;
                     _currentUsername = "";
                     _currentChatRoomId = 0;
                     
-                    // Даем клиенту время получить ответ перед закрытием соединения
                     await Task.Delay(200);
                     
-                    // Удаляем соединение с сохраненным userId
                     _connectionManager.RemoveConnection(userId, this);
                     if (chatRoomId > 0)
                     {
@@ -426,14 +414,11 @@ namespace uchat_server.Services
                 }
                 else
                 {
-                    // Сбрасываем только при неудаче, если нужно
-                    // (обычно не нужно, но на всякий случай)
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error handling delete account");
-                // Сбрасываем пользователя даже при ошибке
                 _currentUserId = 0;
                 _currentUsername = "";
                 _currentChatRoomId = 0;
@@ -451,7 +436,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Получаем информацию о чате до удаления, чтобы узнать второго пользователя
                 var chatRoom = await _chatService.GetChatRoomAsync(chatRoomId);
                 int? otherUserId = null;
                 
@@ -469,7 +453,6 @@ namespace uchat_server.Services
                 {
                     await SendResponseAsync(true, "Chat deleted successfully", new { ChatRoomId = chatRoomId });
                     
-                    // Отправляем уведомление второму пользователю, если он онлайн
                     if (otherUserId.HasValue)
                     {
                         var otherUserHandler = _connectionManager.GetUserConnection(otherUserId.Value);
@@ -555,12 +538,10 @@ namespace uchat_server.Services
 
                 if (response.Success)
                 {
-                    // Используем GetData<T>() для получения UserProfileDto
                     var userProfileDto = response.GetData<UserProfileDto>();
                     
                     if (userProfileDto == null && response.Data is JsonElement jsonElement)
                     {
-                        // Fallback на прямую десериализацию
                         userProfileDto = JsonSerializer.Deserialize<UserProfileDto>(jsonElement.GetRawText());
                     }
                     
@@ -583,11 +564,21 @@ namespace uchat_server.Services
             {
                 if (profileDto == null) return;
 
+                var profileDtoWithoutAvatar = new UserProfileDto
+                {
+                    Id = profileDto.Id,
+                    Username = profileDto.Username,
+                    DisplayName = profileDto.DisplayName,
+                    ProfileInfo = profileDto.ProfileInfo,
+                    Theme = profileDto.Theme,
+                    Avatar = null
+                };
+
                 var updateMessage = new ApiResponse
                 {
                     Success = true,
                     Message = "Profile updated",
-                    Data = profileDto
+                    Data = profileDtoWithoutAvatar
                 };
 
                 var allConnections = _connectionManager.GetAllConnections();
@@ -595,7 +586,6 @@ namespace uchat_server.Services
                 {
                     try
                     {
-                        // ИСПРАВЛЕНА ОШИБКА: используем публичный метод вместо приватного Writer
                         await connection.SendResponseAsync(updateMessage);
                     }
                     catch (Exception ex)
@@ -612,7 +602,6 @@ namespace uchat_server.Services
 
         private void RemoveClientConnection(int? userId = null, int? chatRoomId = null)
         {
-            // Используем переданные параметры или текущие значения
             int actualUserId = userId ?? _currentUserId;
             int actualChatRoomId = chatRoomId ?? _currentChatRoomId;
             
@@ -648,7 +637,6 @@ namespace uchat_server.Services
 
                     if (chat.IsGroup)
                     {
-                        // Для групповых чатов используем информацию о группе
                         chatInfos.Add(new ChatInfoDto
                         {
                             Id = chat.Id,
@@ -662,12 +650,11 @@ namespace uchat_server.Services
                             UnreadCount = 0,
                             LastMessage = lastMessage?.Content,
                             LastMessageTime = lastMessage?.SentAt,
-                            Avatar = chat.Avatar
+                            Avatar = null
                         });
                     }
                     else
                     {
-                        // Для приватных чатов используем информацию о другом пользователе
                         var otherMember = chat.Members.FirstOrDefault(m => m.UserId != _currentUserId);
                         if (otherMember != null)
                         {
@@ -679,7 +666,7 @@ namespace uchat_server.Services
                                 Name = chat.Name,
                                 DisplayName = otherUser?.Username ?? "Unknown",
                                 IsGroup = false,
-                                Description = lastMessage?.Content ?? "Нет сообщений",
+                                Description = lastMessage?.Content ?? "No messages",
                                 OtherUserId = otherMember.UserId,
                                 OtherUsername = otherUser?.Username ?? "Unknown",
                                 CreatedAt = chat.CreatedAt,
@@ -734,19 +721,16 @@ namespace uchat_server.Services
         {
             try
             {
-                // Получаем всех участников чата из БД
                 var chatRoom = await _chatService.GetChatRoomAsync(_currentChatRoomId);
                 if (chatRoom == null)
                 {
                     return;
                 }
 
-                // Отправляем сообщение всем участникам чата, даже если они не в комнате
                 foreach (var member in chatRoom.Members)
                 {
                     try
                     {
-                        // Сначала пробуем отправить через соединения в комнате
                         var roomConnections = _connectionManager.GetRoomConnections(_currentChatRoomId);
                         var connectionInRoom = roomConnections.FirstOrDefault(c => c.CurrentUserId == member.UserId);
                         
@@ -756,7 +740,6 @@ namespace uchat_server.Services
                         }
                         else
                         {
-                            // Если пользователь не в комнате, но онлайн, отправляем через его основное соединение
                             if (_connectionManager.IsUserOnline(member.UserId))
                             {
                                 var userConnection = _connectionManager.GetUserConnection(member.UserId);
@@ -890,7 +873,6 @@ namespace uchat_server.Services
 
                 if (chatRoom.IsGroup)
                 {
-                    // Для групповых чатов используем информацию о группе
                     await SendResponseAsync(true, $"Joined chat room", new
                     {
                         RoomId = chatRoom.Id,
@@ -901,7 +883,6 @@ namespace uchat_server.Services
                 }
                 else
                 {
-                    // Для приватных чатов используем информацию о другом пользователе
                     var otherMember = chatRoom.Members.FirstOrDefault(m => m.UserId != _currentUserId);
                     var otherUser = otherMember?.User;
 
@@ -933,12 +914,10 @@ namespace uchat_server.Services
                 {
                     try
                     {
-                        // Используем метод GetData<T>() из ApiResponse для получения UserProfileDto
                         UserProfileDto? userProfile = result.GetData<UserProfileDto>();
                         
                         if (userProfile == null)
                         {
-                            // Если GetData не сработал, пробуем другие способы
                             if (result.Data is UserProfileDto directProfile)
                             {
                                 userProfile = directProfile;
@@ -996,7 +975,6 @@ namespace uchat_server.Services
 
                                 if (chat.IsGroup)
                                 {
-                                    // Для групповых чатов используем информацию о группе
                                     chatInfos.Add(new ChatInfoDto
                                     {
                                         Id = chat.Id,
@@ -1010,12 +988,11 @@ namespace uchat_server.Services
                                         UnreadCount = 0,
                                         LastMessage = lastMessage?.Content,
                                         LastMessageTime = lastMessage?.SentAt,
-                                        Avatar = chat.Avatar
+                                        Avatar = null
                                     });
                                 }
                                 else
                                 {
-                                    // Для приватных чатов используем информацию о другом пользователе
                                     var otherMember = chat.Members.FirstOrDefault(m => m.UserId != _currentUserId);
                                     if (otherMember != null)
                                     {
@@ -1027,7 +1004,7 @@ namespace uchat_server.Services
                                             Name = chat.Name,
                                             DisplayName = otherUser?.Username ?? "Unknown",
                                             IsGroup = false,
-                                            Description = lastMessage?.Content ?? "Нет сообщений",
+                                            Description = lastMessage?.Content ?? "No messages",
                                             OtherUserId = otherMember.UserId,
                                             OtherUsername = otherUser?.Username ?? "Unknown",
                                             CreatedAt = chat.CreatedAt,
@@ -1040,8 +1017,6 @@ namespace uchat_server.Services
                                 }
                             }
 
-                            // Отправляем полные данные пользователя
-                            // Используем UserProfileDto для совместимости с клиентом
                             var userProfileForResponse = userProfile ?? new UserProfileDto
                             {
                                 Id = _currentUserId,
@@ -1052,7 +1027,6 @@ namespace uchat_server.Services
                                 Avatar = null
                             };
                             
-                            // Дополнительная проверка на пустой Username
                             if (string.IsNullOrEmpty(userProfileForResponse.Username))
                             {
                                 _logger.LogWarning("Username is empty for user {UserId}, using fallback", _currentUserId);
@@ -1062,7 +1036,6 @@ namespace uchat_server.Services
                             _logger.LogInformation("Sending login response with UserId={UserId}, Username={Username}, ChatsCount={ChatsCount}", 
                                 userProfileForResponse.Id, userProfileForResponse.Username, chatInfos.Count);
                             
-                            // Отправляем UserProfileDto напрямую в Data, чтобы клиент мог его десериализовать
                             await SendResponseAsync(true, "Login successful", userProfileForResponse);
                             _logger.LogInformation("Login response sent successfully");
                         }
@@ -1196,7 +1169,6 @@ namespace uchat_server.Services
                 string fileName = parts[2];
                 var resolvedType = ResolveMessageType(fileName, messageType);
 
-                // Check if user is member of the room
                 var room = await _chatService.GetChatRoomAsync(roomId);
                 if (room == null || !room.Members.Any(m => m.UserId == _currentUserId))
                 {
@@ -1204,10 +1176,8 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Send ready response
                 await SendResponseAsync(true, "Ready to receive file");
 
-                // Read file data
                 byte[] fileData = new byte[fileSize];
                 int totalBytesRead = 0;
                 int bytesRead;
@@ -1224,13 +1194,10 @@ namespace uchat_server.Services
                     totalBytesRead += bytesRead;
                 }
 
-                // Save file
                 string uniqueFileName = await _fileStorageService.SaveFileAsync(fileData, fileName, messageType);
 
-                // Determine MIME type
                 string mimeType = GetMimeType(fileName);
 
-                // Save message to database
                 var messageDto = await _chatService.SaveFileMessageAsync(
                     _currentUserId,
                     roomId,
@@ -1247,11 +1214,9 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Broadcast message to room members
                 _currentChatRoomId = roomId;
                 await BroadcastToChatRoomAsync(messageDto);
 
-                // Send success response
                 await SendResponseAsync(true, "File uploaded successfully", messageDto);
             }
             catch (Exception ex)
@@ -1286,7 +1251,6 @@ namespace uchat_server.Services
                     FileName = uniqueFileName
                 };
 
-                // Send metadata
                 var headerResponse = new ApiResponse
                 {
                     Success = true,
@@ -1351,7 +1315,7 @@ namespace uchat_server.Services
 
                 var path = _fileStorageService.GetFilePath(uniqueFileName);
                 var info = new FileInfo(path);
-                const long inlineLimit = 20 * 1024 * 1024; // 20MB cap
+                const long inlineLimit = 20 * 1024 * 1024;
                 if (info.Length > inlineLimit)
                 {
                     await SendResponseAsync(false, "File too large for inline download");
@@ -1396,10 +1360,8 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Получаем новое содержимое (объединяем все части после messageId)
                 string newContent = string.Join(" ", parts.Skip(2));
 
-                // Получаем сообщение для проверки владельца
                 var message = await _chatService.GetMessageAsync(messageId);
                 if (message == null)
                 {
@@ -1407,14 +1369,12 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Проверяем, что сообщение принадлежит текущему пользователю
                 if (message.UserId != _currentUserId)
                 {
                     await SendResponseAsync(false, "You can only edit your own messages");
                     return;
                 }
 
-                // Редактируем сообщение
                 bool success = await _chatService.EditMessageAsync(messageId, newContent);
                 if (!success)
                 {
@@ -1422,7 +1382,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Получаем обновленное сообщение
                 var updatedMessage = await _chatService.GetMessageAsync(messageId);
                 if (updatedMessage == null)
                 {
@@ -1430,10 +1389,8 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Отправляем успешный ответ
                 await SendResponseAsync(true, "Message edited successfully", updatedMessage);
 
-                // Отправляем обновление всем пользователям в чате
                 await BroadcastMessageUpdateAsync(updatedMessage);
             }
             catch (Exception ex)
@@ -1465,7 +1422,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Получаем сообщение для проверки владельца и получения ChatRoomId
                 var message = await _chatService.GetMessageAsync(messageId);
                 if (message == null)
                 {
@@ -1473,7 +1429,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Проверяем, что сообщение принадлежит текущему пользователю
                 if (message.UserId != _currentUserId)
                 {
                     await SendResponseAsync(false, "You can only delete your own messages");
@@ -1482,7 +1437,6 @@ namespace uchat_server.Services
 
                 int chatRoomId = message.ChatRoomId;
 
-                // Удаляем сообщение
                 bool success = await _chatService.DeleteMessageAsync(messageId);
                 if (!success)
                 {
@@ -1490,7 +1444,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Отправляем успешный ответ
                 var deleteResponse = new ApiResponse
                 {
                     Success = true,
@@ -1499,7 +1452,6 @@ namespace uchat_server.Services
                 };
                 await SendResponseAsync(deleteResponse);
 
-                // Отправляем уведомление об удалении всем пользователям в чате
                 await BroadcastMessageDeleteAsync(messageId, chatRoomId);
             }
             catch (Exception ex)
@@ -1518,7 +1470,6 @@ namespace uchat_server.Services
                 {
                     try
                     {
-                        // Отправляем специальное уведомление об обновлении сообщения
                         var updateResponse = new ApiResponse
                         {
                             Success = true,
@@ -1548,7 +1499,6 @@ namespace uchat_server.Services
                 {
                     try
                     {
-                        // Отправляем специальное уведомление об удалении сообщения
                         var deleteResponse = new ApiResponse
                         {
                             Success = true,
@@ -1617,7 +1567,6 @@ namespace uchat_server.Services
             };
         }
 
-        // Методы обработки групп
         private async Task HandleCreateGroupAsync(string groupName)
         {
             try
@@ -1643,7 +1592,7 @@ namespace uchat_server.Services
                     DisplayName = group.Name,
                     IsGroup = true,
                     Description = group.Description,
-                    Avatar = group.Avatar,
+                    Avatar = null,
                     CreatedAt = group.CreatedAt,
                     UnreadCount = 0
                 };
@@ -1716,7 +1665,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Проверяем, что пользователь является участником группы
                 var isMember = group.Members.Any(m => m.UserId == _currentUserId);
                 if (!isMember)
                 {
@@ -1724,7 +1672,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Формируем список участников
                 var members = group.Members.Select(m => new
                 {
                     Id = m.UserId,
@@ -1739,7 +1686,7 @@ namespace uchat_server.Services
                     Id = group.Id,
                     Name = group.Name,
                     Description = group.Description,
-                    Avatar = group.Avatar,
+                    Avatar = (byte[]?)null,
                     CreatedAt = group.CreatedAt,
                     Members = members
                 };
@@ -1793,7 +1740,6 @@ namespace uchat_server.Services
                     return;
                 }
 
-                // Формируем ответ с обновленной информацией о группе
                 var members = updatedGroup.Members.Select(m => new
                 {
                     Id = m.UserId,
@@ -1808,7 +1754,7 @@ namespace uchat_server.Services
                     Id = updatedGroup.Id,
                     Name = updatedGroup.Name,
                     Description = updatedGroup.Description,
-                    Avatar = updatedGroup.Avatar,
+                    Avatar = (byte[]?)null,
                     CreatedAt = updatedGroup.CreatedAt,
                     Members = members
                 };
@@ -1822,7 +1768,6 @@ namespace uchat_server.Services
 
                 await SendResponseAsync(response);
 
-                // Broadcast обновление группы всем участникам
                 await BroadcastGroupUpdateAsync(updatedGroup);
             }
             catch (Exception ex)
@@ -1850,7 +1795,7 @@ namespace uchat_server.Services
                     Id = group.Id,
                     Name = group.Name,
                     Description = group.Description,
-                    Avatar = group.Avatar,
+                    Avatar = (byte[]?)null,
                     CreatedAt = group.CreatedAt,
                     Members = members
                 };
@@ -1891,7 +1836,6 @@ namespace uchat_server.Services
                 
                 if (result.Success)
                 {
-                    // Перезагружаем информацию о группе для отправки обновленного списка участников
                     var group = await _chatService.GetGroupInfoAsync(groupId);
                     if (group != null)
                     {
@@ -1909,7 +1853,7 @@ namespace uchat_server.Services
                             Id = group.Id,
                             Name = group.Name,
                             Description = group.Description,
-                            Avatar = group.Avatar,
+                            Avatar = (byte[]?)null,
                             CreatedAt = group.CreatedAt,
                             Members = members
                         };
@@ -1923,7 +1867,6 @@ namespace uchat_server.Services
 
                         await SendResponseAsync(response);
 
-                        // Broadcast обновление группы всем участникам
                         await BroadcastGroupUpdateAsync(group);
                     }
                 }

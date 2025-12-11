@@ -278,7 +278,6 @@ namespace uchat_server.Services
         {
             try
             {
-                // Используем AsNoTracking для чтения, чтобы избежать проблем с отслеживанием
                 var chatRoom = await _context.ChatRooms
                     .AsNoTracking()
                     .Include(c => c.Members)
@@ -290,7 +289,6 @@ namespace uchat_server.Services
                     return false;
                 }
 
-                // Проверяем, что пользователь является участником чата
                 var isMember = chatRoom.Members.Any(m => m.UserId == userId);
                 if (!isMember)
                 {
@@ -298,10 +296,8 @@ namespace uchat_server.Services
                     return false;
                 }
 
-                // Для приватных чатов удаляем чат полностью (для обоих пользователей)
                 if (!chatRoom.IsGroup)
                 {
-                    // Удаляем всех участников напрямую через запрос
                     var membersToDelete = await _context.ChatRoomMembers
                         .Where(crm => crm.ChatRoomId == chatRoomId)
                         .ToListAsync();
@@ -311,7 +307,6 @@ namespace uchat_server.Services
                         _context.ChatRoomMembers.RemoveRange(membersToDelete);
                     }
 
-                    // Удаляем все сообщения в чате напрямую через запрос
                     var messagesToDelete = await _context.Messages
                         .Where(m => m.ChatRoomId == chatRoomId)
                         .ToListAsync();
@@ -321,7 +316,6 @@ namespace uchat_server.Services
                         _context.Messages.RemoveRange(messagesToDelete);
                     }
 
-                    // Удаляем сам чат (загружаем заново для отслеживания)
                     var chatRoomToDelete = await _context.ChatRooms.FindAsync(chatRoomId);
                     if (chatRoomToDelete != null)
                     {
@@ -330,7 +324,6 @@ namespace uchat_server.Services
                 }
                 else
                 {
-                    // Для групповых чатов удаляем только членство пользователя
                     var userMembership = await _context.ChatRoomMembers
                         .FirstOrDefaultAsync(crm => crm.ChatRoomId == chatRoomId && crm.UserId == userId);
                     
@@ -347,9 +340,8 @@ namespace uchat_server.Services
             catch (DbUpdateConcurrencyException ex)
             {
                 _logger.LogWarning(ex, "Concurrency exception when deleting chat {ChatRoomId} for user {UserId}. Chat may have already been deleted.", chatRoomId, userId);
-                // Проверяем, действительно ли чат был удален
                 var stillExists = await _context.ChatRooms.AnyAsync(c => c.Id == chatRoomId);
-                return !stillExists; // Возвращаем true, если чат больше не существует
+                return !stillExists;
             }
             catch (Exception ex)
             {
@@ -397,7 +389,6 @@ namespace uchat_server.Services
             };
         }
 
-        // Методы для работы с группами
         public async Task<ChatRoom> CreateGroupAsync(int creatorId, string groupName)
         {
             var creator = await _context.Users.FindAsync(creatorId);
@@ -417,7 +408,6 @@ namespace uchat_server.Services
             _context.ChatRooms.Add(group);
             await _context.SaveChangesAsync();
 
-            // Добавляем создателя как участника и администратора
             var member = new ChatRoomMember
             {
                 ChatRoomId = group.Id,
@@ -453,7 +443,6 @@ namespace uchat_server.Services
             _context.ChatRoomMembers.Remove(member);
             await _context.SaveChangesAsync();
 
-            // Если группа пуста, удаляем её
             var remainingMembers = await _context.ChatRoomMembers
                 .CountAsync(m => m.ChatRoomId == groupId);
 
@@ -487,28 +476,24 @@ namespace uchat_server.Services
                     return new ApiResponse { Success = false, Message = "Group not found." };
                 }
 
-                // Проверяем, что пользователь является участником группы
                 var isMember = group.Members.Any(m => m.UserId == userId);
                 if (!isMember)
                 {
                     return new ApiResponse { Success = false, Message = "You are not a member of this group." };
                 }
 
-                // Находим пользователя по username
                 var userToAdd = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
                 if (userToAdd == null)
                 {
                     return new ApiResponse { Success = false, Message = "User not found." };
                 }
 
-                // Проверяем, не является ли пользователь уже участником
                 var alreadyMember = group.Members.Any(m => m.UserId == userToAdd.Id);
                 if (alreadyMember)
                 {
                     return new ApiResponse { Success = false, Message = "User is already a member of this group." };
                 }
 
-                // Добавляем пользователя в группу
                 var newMember = new ChatRoomMember
                 {
                     ChatRoomId = groupId,
@@ -519,7 +504,6 @@ namespace uchat_server.Services
                 _context.ChatRoomMembers.Add(newMember);
                 await _context.SaveChangesAsync();
 
-                // Отправляем уведомление добавленному пользователю
                 if (_connectionManager.IsUserOnline(userToAdd.Id))
                 {
                     var addedUserHandler = _connectionManager.GetUserConnection(userToAdd.Id);
@@ -542,7 +526,7 @@ namespace uchat_server.Services
                                 Id = groupInfo.Id,
                                 Name = groupInfo.Name,
                                 Description = groupInfo.Description,
-                                Avatar = groupInfo.Avatar,
+                                Avatar = (byte[]?)null,
                                 CreatedAt = groupInfo.CreatedAt,
                                 Members = members
                             };
@@ -580,12 +564,10 @@ namespace uchat_server.Services
                 if (group == null)
                     return null;
 
-                // Проверяем, что пользователь является участником группы
                 var isMember = group.Members.Any(m => m.UserId == userId);
                 if (!isMember)
                     return null;
 
-                // Обновляем поля, если они переданы
                 if (newName != null)
                 {
                     group.Name = newName;
@@ -598,7 +580,6 @@ namespace uchat_server.Services
 
                 await _context.SaveChangesAsync();
                 
-                // Загружаем обновленную группу с навигационными свойствами
                 return await _context.ChatRooms
                     .Include(c => c.Members)
                         .ThenInclude(m => m.User)

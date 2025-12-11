@@ -85,7 +85,6 @@ namespace uchat
 
             try
             {
-                // Use command line arguments for server connection
                 string serverIp = App.ServerIp;
                 int serverPort = App.ServerPort;
 
@@ -98,7 +97,6 @@ namespace uchat
                     return;
                 }
 
-                // Save credentials for auto-reconnection
                 _networkClient.SaveCredentials(username, password);
                 _networkClient.EnableAutoReconnect(true);
 

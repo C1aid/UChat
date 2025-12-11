@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
+    <OutputPath Condition="'$(Configuration)' == 'Release'">$(MSBuildThisFileDirectory)..\..\bin\Release\</OutputPath>
+    <OutputPath Condition="'$(Configuration)' != 'Release'">$(MSBuildThisFileDirectory)..\..\bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath Condition="'$(Configuration)' == 'Release'">false</AppendTargetFrameworkToOutputPath>
+    <AssemblyName>uchat</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,6 +38,24 @@
     <Resource Include="Assets\Images\edit.png" />
     <Resource Include="Assets\Images\direct_messages.png" />
     <Resource Include="Assets\Images\group_chats.png" />
+    <Resource Include="Assets\Images\group_chat_icon.png" />
     <Resource Include="Assets\Images\settings.png" />
   </ItemGroup>
+
+  <Target Name="CopyExecutableToRoot" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).exe" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName)" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).dll" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).runtimeconfig.json" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).deps.json" />
+      <FilesToCopy Include="$(OutputPath)$(AssemblyName).pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FilesToCopy)" DestinationFolder="$(MSBuildThisFileDirectory)..\..\" SkipUnchangedFiles="true" Condition="Exists('%(FilesToCopy.Identity)')" />
+    <!-- Copy only DLL files (not folders) -->
+    <ItemGroup>
+      <DllFiles Include="$(OutputPath)*.dll" Exclude="$(OutputPath)$(AssemblyName).dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DllFiles)" DestinationFolder="$(MSBuildThisFileDirectory)..\..\" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
