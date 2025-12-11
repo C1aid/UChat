@@ -25,6 +25,9 @@
     <SolidColorBrush x:Key="ForegroundSecondaryBrush" Color="#BFAFB2"/>
     <SolidColorBrush x:Key="ForegroundTetriaryBrush" Color="#F3E5DC"/>
 
+    <SolidColorBrush x:Key="SendTimeBrush" Color="#3E1818"/>
+    <SolidColorBrush x:Key="RecieveTimeBrush" Color="#E8E0D5"/>
+
     <SolidColorBrush x:Key="BorderBrushColor" Color="#E0A84D" Opacity="0.15"/>
     <Color x:Key="BorderColor">#E0A84D</Color>
 
@@ -35,6 +38,8 @@
         <GradientStop Color="#D9A6A6" Offset="0.0"/> <GradientStop Color="#8C5E5E" Offset="1.0"/> </LinearGradientBrush>
     <SolidColorBrush x:Key="SentMessageTextBrush" Color="#3E1818"/> <SolidColorBrush x:Key="DeleteButtonBrush" Color="#8C5E5E" Opacity="0.3"/>
     <SolidColorBrush x:Key="DeleteTextBrush" Color="#E1B6B6"/>
+
+    <SolidColorBrush x:Key="ScrollBarThumbBrush" Color="#E0A84D" Opacity="0.4"/>
 
     <Style x:Key="RoundButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="14"/>

@@ -65,7 +65,7 @@
     <Setter Property="Template">
         <Setter.Value>
             <ControlTemplate TargetType="{x:Type Thumb}">
-                <Border Background="#405A4A42" 
+                <Border Background="{DynamicResource ScrollBarThumbBrush}" 
                         CornerRadius="4" 
                         BorderThickness="0"/>
             </ControlTemplate>
@@ -526,8 +526,8 @@
                                      Click="ProfileRadioButton_Click">
                             <Viewbox Width="44" Height="44" Stretch="Uniform">
                                 <Canvas Width="256" Height="256">
-                                    <Path Data="M83.19,174.4a8,8,0,0,0,11.21-1.6,52,52,0,0,1,83.2,0,8,8,0,1,0,12.8-9.6A67.88,67.88,0,0,0,163,141.51a40,40,0,1,0-53.94,0A67.88,67.88,0,0,0,81.6,163.2,8,8,0,0,0,83.19,174.4ZM112,112a24,24,0,1,1,24,24A24,24,0,0,1,112,112Zm96-88H64A16,16,0,0,0,48,40V64H32a8,8,0,0,0,0,16H48v40H32a8,8,0,0,0,0,16H48v40H32a8,8,0,0,0,0,16H48v24a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V40A16,16,0,0,0,208,24Zm0,192H64V40H208Z" 
-                                          Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                    <Path Data="M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1-7.37-4.89,8,8,0,0,1,0-6.22A8,8,0,0,1,192,112a24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.84,8,57,57,0,0,0-98.16,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z"
+                                     Fill="{DynamicResource ForegroundPrimaryBrush}"/>
                                 </Canvas>
                             </Viewbox>
                         </RadioButton>
@@ -577,7 +577,8 @@
                                 Background="Transparent" 
                                 Padding="20,25,20,15">
                             <Grid>
-                                <TextBlock Text="Chats" 
+                                <TextBlock x:Name="ChatsHeaderText"
+                                           Text="Chats" 
                                            FontSize="32" 
                                            FontWeight="Bold"
                                            Foreground="{DynamicResource ForegroundPrimaryBrush}"
@@ -587,7 +588,22 @@
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
                                         Click="NewChatButton_Click"
-                                        ToolTip="Add new chat">
+                                        ToolTip="Add new chat"
+                                        Visibility="Visible">
+                                    <Viewbox Width="24" Height="24" Stretch="Uniform">
+                                        <Canvas Width="256" Height="256">
+                                            <Path Data="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32A8,8,0,0,1,176,128Z" 
+                                                  Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                                <Button x:Name="CreateGroupButton"
+                                        Style="{StaticResource IconButtonStyle}"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Click="CreateGroupButton_Click"
+                                        ToolTip="Create new group"
+                                        Visibility="Collapsed">
                                     <Viewbox Width="24" Height="24" Stretch="Uniform">
                                         <Canvas Width="256" Height="256">
                                             <Path Data="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32A8,8,0,0,1,176,128Z" 
@@ -707,10 +723,55 @@
                             </Grid>
                         </Border>
 
+                        <!-- Create Group Panel (Hidden by default) -->
+                        <Border Grid.Row="2" 
+                                Background="Transparent" 
+                                Padding="20,0,20,15"
+                                Visibility="Collapsed"
+                                x:Name="CreateGroupPanel">
+                            <StackPanel>
+                                <Border Background="{DynamicResource ChatListBrush}"
+                                        CornerRadius="12"
+                                        BorderThickness="2"
+                                        BorderBrush="{DynamicResource AccentBrush}"
+                                        Padding="15,12"
+                                        Margin="0,0,0,10">
+                                    <TextBox x:Name="NewGroupName" 
+                                             Text=""
+                                             FontSize="16"
+                                             FontWeight="SemiBold"
+                                             Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Height="30"
+                                             VerticalContentAlignment="Center"/>
+                                </Border>
+                                <Border Background="{DynamicResource ChatListBrush}"
+                                        CornerRadius="12"
+                                        BorderThickness="2"
+                                        BorderBrush="{DynamicResource AccentBrush}"
+                                        Padding="15,12"
+                                        Margin="0,0,0,10">
+                                    <TextBox x:Name="NewGroupDescription" 
+                                             Text=""
+                                             FontSize="15"
+                                             Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             TextWrapping="Wrap"
+                                             AcceptsReturn="True"
+                                             MinHeight="60"
+                                             VerticalScrollBarVisibility="Auto"/>
+                                </Border>
+                                <Button Content="Create Group"
+                                        Style="{StaticResource NeumorphicSendButtonStyle}"
+                                        Click="CreateGroupConfirmButton_Click"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Chat List -->
                         <ListBox Grid.Row="3"
          x:Name="ChatsList"
-         ItemsSource="{Binding ChatList}"
          BorderThickness="0"
          Background="Transparent"
          ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -723,7 +784,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Thumb}">
-                        <Border Background="#605A4A42" CornerRadius="2" BorderThickness="0"/>
+                        <Border Background="{DynamicResource ScrollBarThumbBrush}" CornerRadius="2" BorderThickness="0"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -913,12 +974,9 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Avatar -->
+                            <!-- Avatar (скрыт для групповых чатов) -->
                             <Ellipse Grid.Column="0" 
                                      x:Name="ChatHeaderAvatar"
                                      Width="100" 
@@ -945,38 +1003,6 @@
                                        Foreground="{DynamicResource ForegroundPrimaryBrush}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,15,0"/>
-
-                            <!-- Search Button -->
-                            <Button Grid.Column="2"
-                                    x:Name="SearchHeaderButton"
-                                    Style="{StaticResource IconButtonStyle}"
-                                    Margin="0,0,10,0"
-                                    VerticalAlignment="Center"
-                                    Click="SearchHeaderButton_Click"
-                                    ToolTip="Search">
-                                <Viewbox Width="37" Height="37" Stretch="Uniform">
-                                    <Canvas Width="256" Height="256">
-                                        <Path Data="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" 
-                                              Fill="{DynamicResource ForegroundPrimaryBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                            </Button>
-
-                            <!-- Call Button -->
-                            <Button Grid.Column="3"
-                                    x:Name="CallHeaderButton"
-                                    Style="{StaticResource IconButtonStyle}"
-                                    Margin="0,0,10,0"
-                                    VerticalAlignment="Center"
-                                    Click="CallHeaderButton_Click"
-                                    ToolTip="Call">
-                                <Viewbox Width="37" Height="37" Stretch="Uniform">
-                                    <Canvas Width="256" Height="256">
-                                        <Path Data="M222.37,158.46l-47.11-21.11-.13-.06a16,16,0,0,0-15.17,1.4,8.12,8.12,0,0,0-.75.56L134.87,160c-15.42-7.49-31.34-23.29-38.83-38.51l20.78-24.71c.2-.25.39-.5.57-.77a16,16,0,0,0,1.32-15.06l0-.12L97.54,33.64a16,16,0,0,0-16.62-9.52A56.26,56.26,0,0,0,32,80c0,79.4,64.6,144,144,144a56.26,56.26,0,0,0,55.88-48.92A16,16,0,0,0,222.37,158.46ZM176,208A128.14,128.14,0,0,1,48,80,40.2,40.2,0,0,1,82.87,40a.61.61,0,0,0,0,.12l21,47L83.2,111.86a6.13,6.13,0,0,0-.57.77,16,16,0,0,0-1,15.7c9.06,18.53,27.73,37.06,46.46,46.11a16,16,0,0,0,15.75-1.14,8.44,8.44,0,0,0,.74-.56L168.89,152l47,21.05h0s.08,0,.11,0A40.21,40.21,0,0,1,176,208Z" 
-                                              Fill="{DynamicResource ForegroundPrimaryBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                            </Button>
 
                         </Grid>
                     </Grid>
@@ -1013,7 +1039,7 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Thumb}">
-                            <Border Background="#905A4A42" CornerRadius="3" BorderThickness="0"/>
+                            <Border Background="{DynamicResource ScrollBarThumbBrush}" CornerRadius="3" BorderThickness="0"/>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
@@ -1486,25 +1512,10 @@
                                 </Viewbox>
                             </Button>
 
-                            <!-- Emoji button -->
-                            <Button x:Name="EmojiButton"
-                                    Grid.Column="1"
-                                    Style="{StaticResource IconButtonStyle}"
-                                    Margin="0,0,15,0"
-                                    VerticalAlignment="Center"
-                                    Click="EmojiButton_Click"
-                                    ToolTip="Emoji">
-                                <Viewbox Width="35" Height="35" Stretch="Uniform">
-                                    <Canvas Width="256" Height="256">
-                                        <Path Data="M174.92,156c-10.29,17.79-27.39,28-46.92,28s-36.63-10.2-46.93-28a8,8,0,1,1,13.86-8c7.46,12.91,19.2,20,33.07,20s25.61-7.1,33.08-20a8,8,0,1,1,13.84,8ZM232,128a104.35,104.35,0,0,1-4.56,30.56,8,8,0,0,1-2,3.31l-63.57,63.57a7.9,7.9,0,0,1-3.3,2A104,104,0,1,1,232,128Zm-16,0a87.89,87.89,0,1,0-64,84.69L212.69,152A88.05,88.05,0,0,0,216,128ZM92,120a12,12,0,1,0-12-12A12,12,0,0,0,92,120Zm72-24a12,12,0,1,0,12,12A12,12,0,0,0,164,96Z" 
-                                              Fill="{DynamicResource ForegroundSecondaryBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                            </Button>
-
                             <!-- Message input (center) -->
                             <Grid Grid.Column="2" Margin="0,0,15,0" VerticalAlignment="Center">
                                 <TextBox x:Name="MessageInput" 
+                                    CaretBrush="{DynamicResource ForegroundPrimaryBrush}"
                                          KeyDown="MessageInput_KeyDown"
                                          GotFocus="MessageInput_GotFocus"
                                          LostFocus="MessageInput_LostFocus"
@@ -1521,9 +1532,25 @@
                                 </TextBox>
                             </Grid>
 
+                            <!-- Emoji button -->
+                            <Button x:Name="EmojiButton"
+                                    Grid.Column="3"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Margin="0,0,15,0"
+                                    VerticalAlignment="Center"
+                                    Click="EmojiButton_Click"
+                                    ToolTip="Emoji">
+                                <Viewbox Width="35" Height="35" Stretch="Uniform">
+                                    <Canvas Width="256" Height="256">
+                                        <Path Data="M174.92,156c-10.29,17.79-27.39,28-46.92,28s-36.63-10.2-46.93-28a8,8,0,1,1,13.86-8c7.46,12.91,19.2,20,33.07,20s25.61-7.1,33.08-20a8,8,0,1,1,13.84,8ZM232,128a104.35,104.35,0,0,1-4.56,30.56,8,8,0,0,1-2,3.31l-63.57,63.57a7.9,7.9,0,0,1-3.3,2A104,104,0,1,1,232,128Zm-16,0a87.89,87.89,0,1,0-64,84.69L212.69,152A88.05,88.05,0,0,0,216,128ZM92,120a12,12,0,1,0-12-12A12,12,0,0,0,92,120Zm72-24a12,12,0,1,0,12,12A12,12,0,0,0,164,96Z" 
+                                              Fill="{DynamicResource ForegroundSecondaryBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+
                             <!-- Send button (right) -->
                                 <Button x:Name="SendButton"
-                                    Grid.Column="3"
+                                    Grid.Column="4"
                                     Style="{StaticResource IconButtonStyle}"
                                     Margin="0,0,0,0"
                                     VerticalAlignment="Center"
@@ -1562,47 +1589,6 @@
             <Grid x:Name="ProfileView" 
                   Visibility="Collapsed"
                   HorizontalAlignment="Stretch">
-                <Border Background="{DynamicResource MessageInputBrush}" 
-                        CornerRadius="25"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch">
-                    <Border.BorderBrush>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#80FFFFFF" Offset="0"/>
-                            <GradientStop Color="#20FFFFFF" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.BorderBrush>
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="#40000000" Opacity="0.1"/>
-                    </Border.Effect>
-                    
-                    <StackPanel VerticalAlignment="Center" 
-                              HorizontalAlignment="Center">
-                        <TextBlock Text="Under construction" 
-                                 FontSize="42" 
-                                 FontWeight="SemiBold"
-                                 Foreground="{DynamicResource ForegroundPrimaryBrush}"
-                                 HorizontalAlignment="Center"
-                                 Margin="0,0,0,50">
-                            <TextBlock.Effect>
-                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Color="#F5F5DC" Opacity="0.3"/>
-                            </TextBlock.Effect>
-                        </TextBlock>
-                        
-                        <!-- Static Gear Icon -->
-                        <Path Data="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm12-88a12,12,0,1,1-12-12A12,12,0,0,1,140,128Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,128Zm-88,0a12,12,0,1,1-12-12A12,12,0,0,1,96,128Z"
-                              Fill="{DynamicResource AccentBrush}"
-                              Stretch="Uniform"
-                              Width="120"
-                              Height="120"
-                              HorizontalAlignment="Center"
-                              Opacity="0.7">
-                            <Path.Effect>
-                                <DropShadowEffect BlurRadius="15" ShadowDepth="3" Color="#40000000" Opacity="0.2"/>
-                            </Path.Effect>
-                        </Path>
-                    </StackPanel>
-                </Border>
             </Grid>
 
             <!-- Settings view -->
@@ -1633,6 +1619,329 @@
             </Grid>
         </Grid>
 
+        <!-- Group Info Panel (Right Side) -->
+        <Border Grid.Column="2"  
+                Background="{DynamicResource MessageInputBrush}" 
+                CornerRadius="32"
+                Margin="12"
+                x:Name="GroupInfoPanel"
+                Visibility="Collapsed"
+                BorderThickness="1.5"
+                SnapsToDevicePixels="False"
+                ClipToBounds="False">
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#80FFFFFF" Offset="0"/>
+                    <GradientStop Color="#20FFFFFF" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="#40000000" Opacity="0.1"/>
+            </Border.Effect>
+
+            <Border.Resources>
+                <Style x:Key="ScrollThumb" TargetType="{x:Type Thumb}">
+                    <Setter Property="MinHeight" Value="20"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                <Border Background="{DynamicResource ScrollBarThumbBrush}" CornerRadius="4" BorderThickness="0"/>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <Style x:Key="MinimalScrollBar" TargetType="{x:Type ScrollBar}">
+                    <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Width" Value="6"/>
+                    <Setter Property="Margin" Value="0,35,0,35"/>
+                     <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                <Grid x:Name="GridRoot" Width="6" Background="Transparent">
+                                    <Track x:Name="PART_Track" IsDirectionReversed="true" Focusable="false">
+                                        <Track.Thumb>
+                                            <Thumb Style="{StaticResource ScrollThumb}"/>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <Style x:Key="ModernScrollViewer" TargetType="{x:Type ScrollViewer}">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                                <Grid Background="{TemplateBinding Background}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" 
+                                                            CanContentScroll="{TemplateBinding CanContentScroll}" 
+                                                            Grid.Column="0" 
+                                                            Margin="{TemplateBinding Padding}" 
+                                                            Content="{TemplateBinding Content}"/>
+                                    <ScrollBar x:Name="PART_VerticalScrollBar" 
+                                               Style="{StaticResource MinimalScrollBar}"
+                                               Grid.Column="1" 
+                                               Maximum="{TemplateBinding ScrollableHeight}" 
+                                               Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" 
+                                               Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" 
+                                               ViewportSize="{TemplateBinding ViewportHeight}"/>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Border.Resources>
+
+            <ScrollViewer Style="{StaticResource ModernScrollViewer}" 
+                          VerticalScrollBarVisibility="Auto" 
+                          Padding="30">
+                <StackPanel>
+                    <!-- Group Picture -->
+                    <Ellipse x:Name="GroupAvatar"
+                             Width="120"
+                             Height="120"
+                             HorizontalAlignment="Center"
+                             Margin="0,20,0,30">
+                        <Ellipse.Fill>
+                            <Binding Path="GroupAvatarData" Converter="{StaticResource AvatarToBrushConverter}">
+                                <Binding.FallbackValue>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#8B7355" Offset="0"/>
+                                        <GradientStop Color="#A68B6B" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Binding.FallbackValue>
+                            </Binding>
+                        </Ellipse.Fill>
+                    </Ellipse>
+
+                    <!-- Group Name -->
+                    <StackPanel Margin="0,0,0,20">
+                        <TextBlock Text="Group name"
+                                   FontSize="13"
+                                   FontWeight="Medium"
+                                   Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                   Margin="0,0,0,8"/>
+                        <Border Background="{DynamicResource ChatListBrush}"
+                                CornerRadius="12"
+                                Padding="15,12">
+                            <TextBox x:Name="GroupName"
+                                     Text=""
+                                     FontSize="16"
+                                     FontWeight="SemiBold"
+                                     Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                     Background="Transparent"
+                                     BorderThickness="0"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Group Description -->
+                    <StackPanel Margin="0,0,0,20">
+                        <TextBlock Text="Description"
+                                   FontSize="13"
+                                   FontWeight="Medium"
+                                   Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                   Margin="0,0,0,8"/>
+                        <Border Background="{DynamicResource ChatListBrush}"
+                                CornerRadius="12"
+                                Padding="15,12">
+                            <TextBox x:Name="GroupDescription"
+                                     Text=""
+                                     FontSize="15"
+                                     Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     MinHeight="60"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Members Section -->
+                    <Grid Margin="0,10,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Members"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource ForegroundPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                        <Button x:Name="AddMemberButton"
+                                Grid.Column="1"
+                                Style="{StaticResource IconButtonStyle}"
+                                Height="35"
+                                Width="35"
+                                Cursor="Hand"
+                                Click="AddMemberButton_Click"
+                                ToolTip="Add member">
+                            <Viewbox Width="20" Height="20" Stretch="Uniform">
+                                <Canvas Width="256" Height="256">
+                                    <Path Data="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm48-88a8,8,0,0,1-8,8H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32A8,8,0,0,1,176,128Z" 
+                                          Fill="{DynamicResource ForegroundPrimaryBrush}"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
+                    </Grid>
+                    
+                    <ListBox x:Name="GroupMembersList"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             MaxHeight="300"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource ChatListBrush}"
+                                        CornerRadius="12"
+                                        Padding="12,10"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="40" Height="40" Grid.Column="0" Margin="0,0,12,0">
+                                            <Ellipse.Fill>
+                                                <Binding Path="Avatar" Converter="{StaticResource AvatarToBrushConverter}">
+                                                    <Binding.FallbackValue>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                            <GradientStop Color="{DynamicResource AccentColor}" Offset="0"/>
+                                                            <GradientStop Color="#A68B6B" Offset="1"/>
+                                                        </LinearGradientBrush>
+                                                    </Binding.FallbackValue>
+                                                </Binding>
+                                            </Ellipse.Fill>
+                                        </Ellipse>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                            <TextBlock Text="{Binding Username}"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                       Opacity="0.8"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Save Group Settings Button -->
+                    <Button x:Name="SaveGroupSettingsButton"
+                            Content="Save settings"
+                            Height="50"
+                            Background="{DynamicResource AccentBrush}"
+                            Foreground="White"
+                            FontSize="15"
+                            FontWeight="SemiBold"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Margin="0,20,0,20"
+                            Click="SaveGroupSettingsButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" 
+                                                    Background="{TemplateBinding Background}" 
+                                                    CornerRadius="15"
+                                                    BorderThickness="1.5">
+                                                <Border.BorderBrush>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#80FFFFFF" Offset="0"/>
+                                                        <GradientStop Color="#20FFFFFF" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.BorderBrush>
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="10" ShadowDepth="3" Color="#40000000" Opacity="0.2" Direction="225"/>
+                                                </Border.Effect>
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Opacity" Value="0.9"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="border" Property="Effect">
+                                                        <Setter.Value>
+                                                            <DropShadowEffect BlurRadius="6" ShadowDepth="1" Color="#40000000" Opacity="0.15" Direction="225"/>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Leave Group Button -->
+                    <Button x:Name="LeaveGroupButton"
+                            Content="Leave group"
+                            Height="50"
+                            Background="#F5D5D5"
+                            Foreground="#8B2E2E"
+                            FontSize="15"
+                            FontWeight="SemiBold"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Margin="0,30,0,20"
+                            Click="LeaveGroupButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" 
+                                                    Background="{TemplateBinding Background}" 
+                                                    CornerRadius="15"
+                                                    BorderThickness="1.5">
+                                                <Border.BorderBrush>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                        <GradientStop Color="#40D32F2F" Offset="0"/>
+                                                        <GradientStop Color="#20D32F2F" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.BorderBrush>
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="10" ShadowDepth="3" Color="#40D32F2F" Opacity="0.15" Direction="225"/>
+                                                </Border.Effect>
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Opacity" Value="0.85"/>
+                                                    <Setter TargetName="border" Property="Background" Value="#F0C0C0"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="border" Property="Effect">
+                                                        <Setter.Value>
+                                                            <DropShadowEffect BlurRadius="6" ShadowDepth="1" Color="#40D32F2F" Opacity="0.1" Direction="225"/>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Setter TargetName="border" Property="Background" Value="#E8B8B8"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
         <!-- Emoji Popup -->
         <Popup x:Name="EmojiPopup"
                Placement="Top"
@@ -1647,7 +1956,11 @@
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="20" ShadowDepth="5" Color="#40000000" Opacity="0.3"/>
                 </Border.Effect>
-                <ScrollViewer MaxHeight="300" MaxWidth="400" VerticalScrollBarVisibility="Auto">
+                
+                <ScrollViewer Style="{StaticResource ModernScrollViewer}" 
+                              MaxHeight="300" 
+                              MaxWidth="400" 
+                              VerticalScrollBarVisibility="Auto">
                     <ItemsControl x:Name="EmojiList">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -1682,6 +1995,7 @@
                                     </Button.Style>
                                     <TextBlock Text="{Binding}" 
                                                FontSize="28"
+                                               Foreground="{DynamicResource ForegroundPrimaryBrush}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"/>
                                 </Button>
@@ -1709,7 +2023,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Thumb}">
-                        <Border Background="#605A4A42" CornerRadius="4" BorderThickness="0"/>
+                        <Border Background="{DynamicResource ScrollBarThumbBrush}" CornerRadius="4" BorderThickness="0"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

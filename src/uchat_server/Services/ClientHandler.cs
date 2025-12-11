@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Uchat.Shared.DTOs;
 using Uchat.Shared.Enums;
+using Uchat.Shared.Models;
 
 namespace uchat_server.Services
 {
@@ -247,6 +248,63 @@ namespace uchat_server.Services
 
                 case "/delete_message":
                     await HandleDeleteMessageAsync(parts);
+                    break;
+
+                case "/creategroup":
+                    if (parts.Length >= 2)
+                    {
+                        string groupName = string.Join(" ", parts.Skip(1));
+                        await HandleCreateGroupAsync(groupName);
+                    }
+                    else
+                    {
+                        await SendResponseAsync(false, "Usage: /creategroup <groupName>");
+                    }
+                    break;
+
+                case "/leavegroup":
+                    if (parts.Length == 2 && int.TryParse(parts[1], out int groupIdToLeave))
+                    {
+                        await HandleLeaveGroupAsync(groupIdToLeave);
+                    }
+                    else
+                    {
+                        await SendResponseAsync(false, "Usage: /leavegroup <groupId>");
+                    }
+                    break;
+
+                case "/groupinfo":
+                    if (parts.Length == 2 && int.TryParse(parts[1], out int groupId))
+                    {
+                        await HandleGetGroupInfoAsync(groupId);
+                    }
+                    else
+                    {
+                        await SendResponseAsync(false, "Usage: /groupinfo <groupId>");
+                    }
+                    break;
+
+                case "/updategroup":
+                    if (parts.Length >= 2 && int.TryParse(parts[1], out int groupIdToUpdate))
+                    {
+                        await HandleUpdateGroupAsync(groupIdToUpdate, parts.Skip(2).ToArray());
+                    }
+                    else
+                    {
+                        await SendResponseAsync(false, "Usage: /updategroup <groupId> [name:<name>] [desc:<description>]");
+                    }
+                    break;
+
+                case "/addmember":
+                    if (parts.Length == 3 && int.TryParse(parts[1], out int groupIdToAdd))
+                    {
+                        string username = parts[2];
+                        await HandleAddMemberAsync(groupIdToAdd, username);
+                    }
+                    else
+                    {
+                        await SendResponseAsync(false, "Usage: /addmember <groupId> <username>");
+                    }
                     break;
 
                 default:
@@ -586,27 +644,51 @@ namespace uchat_server.Services
 
                 foreach (var chat in userChats)
                 {
-                    var otherMember = chat.Members.FirstOrDefault(m => m.UserId != _currentUserId);
-                    if (otherMember != null)
-                    {
-                        var otherUser = await _chatService.GetUserByIdAsync(otherMember.UserId);
-                        var lastMessage = await _chatService.GetLastMessageAsync(chat.Id);
+                    var lastMessage = await _chatService.GetLastMessageAsync(chat.Id);
 
+                    if (chat.IsGroup)
+                    {
+                        // Для групповых чатов используем информацию о группе
                         chatInfos.Add(new ChatInfoDto
                         {
                             Id = chat.Id,
                             Name = chat.Name,
-                            DisplayName = otherUser?.Username ?? "Unknown",
-                            IsGroup = chat.IsGroup,
-                            Description = lastMessage?.Content ?? "Нет сообщений",
-                            OtherUserId = otherMember.UserId,
-                            OtherUsername = otherUser?.Username ?? "Unknown",
+                            DisplayName = chat.Name,
+                            IsGroup = true,
+                            Description = chat.Description ?? "Group chat",
+                            OtherUserId = 0,
+                            OtherUsername = "",
                             CreatedAt = chat.CreatedAt,
                             UnreadCount = 0,
                             LastMessage = lastMessage?.Content,
                             LastMessageTime = lastMessage?.SentAt,
-                            Avatar = otherUser?.Avatar
+                            Avatar = chat.Avatar
                         });
+                    }
+                    else
+                    {
+                        // Для приватных чатов используем информацию о другом пользователе
+                        var otherMember = chat.Members.FirstOrDefault(m => m.UserId != _currentUserId);
+                        if (otherMember != null)
+                        {
+                            var otherUser = await _chatService.GetUserByIdAsync(otherMember.UserId);
+
+                            chatInfos.Add(new ChatInfoDto
+                            {
+                                Id = chat.Id,
+                                Name = chat.Name,
+                                DisplayName = otherUser?.Username ?? "Unknown",
+                                IsGroup = false,
+                                Description = lastMessage?.Content ?? "Нет сообщений",
+                                OtherUserId = otherMember.UserId,
+                                OtherUsername = otherUser?.Username ?? "Unknown",
+                                CreatedAt = chat.CreatedAt,
+                                UnreadCount = 0,
+                                LastMessage = lastMessage?.Content,
+                                LastMessageTime = lastMessage?.SentAt,
+                                Avatar = otherUser?.Avatar
+                            });
+                        }
                     }
                 }
 
@@ -652,16 +734,42 @@ namespace uchat_server.Services
         {
             try
             {
-                var roomConnections = _connectionManager.GetRoomConnections(_currentChatRoomId);
-                foreach (var connection in roomConnections)
+                // Получаем всех участников чата из БД
+                var chatRoom = await _chatService.GetChatRoomAsync(_currentChatRoomId);
+                if (chatRoom == null)
+                {
+                    return;
+                }
+
+                // Отправляем сообщение всем участникам чата, даже если они не в комнате
+                foreach (var member in chatRoom.Members)
                 {
                     try
                     {
-                        await connection.SendMessageToClientAsync(messageDto);
+                        // Сначала пробуем отправить через соединения в комнате
+                        var roomConnections = _connectionManager.GetRoomConnections(_currentChatRoomId);
+                        var connectionInRoom = roomConnections.FirstOrDefault(c => c.CurrentUserId == member.UserId);
+                        
+                        if (connectionInRoom != null)
+                        {
+                            await connectionInRoom.SendMessageToClientAsync(messageDto);
+                        }
+                        else
+                        {
+                            // Если пользователь не в комнате, но онлайн, отправляем через его основное соединение
+                            if (_connectionManager.IsUserOnline(member.UserId))
+                            {
+                                var userConnection = _connectionManager.GetUserConnection(member.UserId);
+                                if (userConnection != null)
+                                {
+                                    await userConnection.SendMessageToClientAsync(messageDto);
+                                }
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to send to user");
+                        _logger.LogError(ex, "Failed to send to user {UserId}", member.UserId);
                     }
                 }
             }
@@ -778,18 +886,33 @@ namespace uchat_server.Services
                 _currentChatRoomId = roomId;
                 _connectionManager.JoinRoom(_currentUserId, _currentChatRoomId, this);
 
-                var otherMember = chatRoom.Members.FirstOrDefault(m => m.UserId != _currentUserId);
-                var otherUser = otherMember?.User;
-
                 var history = await _chatService.GetRoomMessagesAsync(roomId);
 
-                await SendResponseAsync(true, $"Joined chat room", new
+                if (chatRoom.IsGroup)
                 {
-                    RoomId = chatRoom.Id,
-                    TargetUser = otherUser?.Username ?? "Unknown",
-                    OtherUserId = otherMember?.UserId ?? 0,
-                    History = history
-                });
+                    // Для групповых чатов используем информацию о группе
+                    await SendResponseAsync(true, $"Joined chat room", new
+                    {
+                        RoomId = chatRoom.Id,
+                        TargetUser = chatRoom.Name,
+                        OtherUserId = 0,
+                        History = history
+                    });
+                }
+                else
+                {
+                    // Для приватных чатов используем информацию о другом пользователе
+                    var otherMember = chatRoom.Members.FirstOrDefault(m => m.UserId != _currentUserId);
+                    var otherUser = otherMember?.User;
+
+                    await SendResponseAsync(true, $"Joined chat room", new
+                    {
+                        RoomId = chatRoom.Id,
+                        TargetUser = otherUser?.Username ?? "Unknown",
+                        OtherUserId = otherMember?.UserId ?? 0,
+                        History = history
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -869,27 +992,51 @@ namespace uchat_server.Services
 
                             foreach (var chat in userChats)
                             {
-                                var otherMember = chat.Members.FirstOrDefault(m => m.UserId != _currentUserId);
-                                if (otherMember != null)
-                                {
-                                    var otherUser = await _chatService.GetUserByIdAsync(otherMember.UserId);
-                                    var lastMessage = await _chatService.GetLastMessageAsync(chat.Id);
+                                var lastMessage = await _chatService.GetLastMessageAsync(chat.Id);
 
+                                if (chat.IsGroup)
+                                {
+                                    // Для групповых чатов используем информацию о группе
                                     chatInfos.Add(new ChatInfoDto
                                     {
                                         Id = chat.Id,
                                         Name = chat.Name,
-                                        DisplayName = otherUser?.Username ?? "Unknown",
-                                        IsGroup = chat.IsGroup,
-                                        Description = lastMessage?.Content ?? "Нет сообщений",
-                                        OtherUserId = otherMember.UserId,
-                                        OtherUsername = otherUser?.Username ?? "Unknown",
+                                        DisplayName = chat.Name,
+                                        IsGroup = true,
+                                        Description = chat.Description ?? "Group chat",
+                                        OtherUserId = 0,
+                                        OtherUsername = "",
                                         CreatedAt = chat.CreatedAt,
                                         UnreadCount = 0,
                                         LastMessage = lastMessage?.Content,
                                         LastMessageTime = lastMessage?.SentAt,
-                                        Avatar = otherUser?.Avatar
+                                        Avatar = chat.Avatar
                                     });
+                                }
+                                else
+                                {
+                                    // Для приватных чатов используем информацию о другом пользователе
+                                    var otherMember = chat.Members.FirstOrDefault(m => m.UserId != _currentUserId);
+                                    if (otherMember != null)
+                                    {
+                                        var otherUser = await _chatService.GetUserByIdAsync(otherMember.UserId);
+
+                                        chatInfos.Add(new ChatInfoDto
+                                        {
+                                            Id = chat.Id,
+                                            Name = chat.Name,
+                                            DisplayName = otherUser?.Username ?? "Unknown",
+                                            IsGroup = false,
+                                            Description = lastMessage?.Content ?? "Нет сообщений",
+                                            OtherUserId = otherMember.UserId,
+                                            OtherUsername = otherUser?.Username ?? "Unknown",
+                                            CreatedAt = chat.CreatedAt,
+                                            UnreadCount = 0,
+                                            LastMessage = lastMessage?.Content,
+                                            LastMessageTime = lastMessage?.SentAt,
+                                            Avatar = otherUser?.Avatar
+                                        });
+                                    }
                                 }
                             }
 
@@ -1468,6 +1615,328 @@ namespace uchat_server.Services
                 ".pdf" => "application/pdf",
                 _ => "application/octet-stream"
             };
+        }
+
+        // Методы обработки групп
+        private async Task HandleCreateGroupAsync(string groupName)
+        {
+            try
+            {
+                if (_currentUserId == 0)
+                {
+                    await SendResponseAsync(false, "You must login first");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(groupName))
+                {
+                    await SendResponseAsync(false, "Group name cannot be empty");
+                    return;
+                }
+
+                var group = await _chatService.CreateGroupAsync(_currentUserId, groupName.Trim());
+                
+                var groupDto = new ChatInfoDto
+                {
+                    Id = group.Id,
+                    Name = group.Name,
+                    DisplayName = group.Name,
+                    IsGroup = true,
+                    Description = group.Description,
+                    Avatar = group.Avatar,
+                    CreatedAt = group.CreatedAt,
+                    UnreadCount = 0
+                };
+
+                var response = new ApiResponse
+                {
+                    Success = true,
+                    Message = "Group created successfully",
+                    Data = groupDto
+                };
+
+                await SendResponseAsync(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating group");
+                await SendResponseAsync(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private async Task HandleLeaveGroupAsync(int groupId)
+        {
+            try
+            {
+                if (_currentUserId == 0)
+                {
+                    await SendResponseAsync(false, "You must login first");
+                    return;
+                }
+
+                var success = await _chatService.LeaveGroupAsync(_currentUserId, groupId);
+                
+                if (success)
+                {
+                    var response = new ApiResponse
+                    {
+                        Success = true,
+                        Message = "Left group successfully",
+                        Data = new { GroupId = groupId }
+                    };
+                    await SendResponseAsync(response);
+                }
+                else
+                {
+                    await SendResponseAsync(false, "Failed to leave group or group not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error leaving group");
+                await SendResponseAsync(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private async Task HandleGetGroupInfoAsync(int groupId)
+        {
+            try
+            {
+                if (_currentUserId == 0)
+                {
+                    await SendResponseAsync(false, "You must login first");
+                    return;
+                }
+
+                var group = await _chatService.GetGroupInfoAsync(groupId);
+                
+                if (group == null)
+                {
+                    await SendResponseAsync(false, "Group not found");
+                    return;
+                }
+
+                // Проверяем, что пользователь является участником группы
+                var isMember = group.Members.Any(m => m.UserId == _currentUserId);
+                if (!isMember)
+                {
+                    await SendResponseAsync(false, "You are not a member of this group");
+                    return;
+                }
+
+                // Формируем список участников
+                var members = group.Members.Select(m => new
+                {
+                    Id = m.UserId,
+                    Username = m.User?.Username ?? "Unknown",
+                    DisplayName = m.User?.DisplayName ?? "",
+                    Avatar = m.User?.Avatar,
+                    IsAdmin = m.IsAdmin
+                }).ToArray();
+
+                var groupInfo = new
+                {
+                    Id = group.Id,
+                    Name = group.Name,
+                    Description = group.Description,
+                    Avatar = group.Avatar,
+                    CreatedAt = group.CreatedAt,
+                    Members = members
+                };
+
+                var response = new ApiResponse
+                {
+                    Success = true,
+                    Message = "Group info",
+                    Data = groupInfo
+                };
+
+                await SendResponseAsync(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting group info");
+                await SendResponseAsync(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private async Task HandleUpdateGroupAsync(int groupId, string[] updateParams)
+        {
+            try
+            {
+                if (_currentUserId == 0)
+                {
+                    await SendResponseAsync(false, "You must login first");
+                    return;
+                }
+
+                string? newName = null;
+                string? newDescription = null;
+
+                foreach (var param in updateParams)
+                {
+                    if (param.StartsWith("name:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newName = param.Substring(5);
+                    }
+                    else if (param.StartsWith("desc:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newDescription = param.Substring(5);
+                    }
+                }
+
+                var updatedGroup = await _chatService.UpdateGroupAsync(groupId, _currentUserId, newName, newDescription);
+                
+                if (updatedGroup == null)
+                {
+                    await SendResponseAsync(false, "Failed to update group or you don't have permission");
+                    return;
+                }
+
+                // Формируем ответ с обновленной информацией о группе
+                var members = updatedGroup.Members.Select(m => new
+                {
+                    Id = m.UserId,
+                    Username = m.User?.Username ?? "Unknown",
+                    DisplayName = m.User?.DisplayName ?? "",
+                    Avatar = m.User?.Avatar,
+                    IsAdmin = m.IsAdmin
+                }).ToArray();
+
+                var groupInfo = new
+                {
+                    Id = updatedGroup.Id,
+                    Name = updatedGroup.Name,
+                    Description = updatedGroup.Description,
+                    Avatar = updatedGroup.Avatar,
+                    CreatedAt = updatedGroup.CreatedAt,
+                    Members = members
+                };
+
+                var response = new ApiResponse
+                {
+                    Success = true,
+                    Message = "Group updated",
+                    Data = groupInfo
+                };
+
+                await SendResponseAsync(response);
+
+                // Broadcast обновление группы всем участникам
+                await BroadcastGroupUpdateAsync(updatedGroup);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating group");
+                await SendResponseAsync(false, $"Error: {ex.Message}");
+            }
+        }
+
+        private async Task BroadcastGroupUpdateAsync(ChatRoom group)
+        {
+            try
+            {
+                var members = group.Members.Select(m => new
+                {
+                    Id = m.UserId,
+                    Username = m.User?.Username ?? "Unknown",
+                    DisplayName = m.User?.DisplayName ?? "",
+                    Avatar = m.User?.Avatar,
+                    IsAdmin = m.IsAdmin
+                }).ToArray();
+
+                var groupInfo = new
+                {
+                    Id = group.Id,
+                    Name = group.Name,
+                    Description = group.Description,
+                    Avatar = group.Avatar,
+                    CreatedAt = group.CreatedAt,
+                    Members = members
+                };
+
+                var updateResponse = new ApiResponse
+                {
+                    Success = true,
+                    Message = "Group updated",
+                    Data = groupInfo
+                };
+
+                foreach (var member in group.Members)
+                {
+                    var handler = _connectionManager.GetUserConnection(member.UserId);
+                    if (handler != null && handler != this)
+                    {
+                        await handler.SendResponseAsync(updateResponse);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error broadcasting group update");
+            }
+        }
+
+        private async Task HandleAddMemberAsync(int groupId, string username)
+        {
+            try
+            {
+                if (_currentUserId == 0)
+                {
+                    await SendResponseAsync(false, "You must login first");
+                    return;
+                }
+
+                var result = await _chatService.AddMemberToGroupAsync(groupId, _currentUserId, username);
+                
+                if (result.Success)
+                {
+                    // Перезагружаем информацию о группе для отправки обновленного списка участников
+                    var group = await _chatService.GetGroupInfoAsync(groupId);
+                    if (group != null)
+                    {
+                        var members = group.Members.Select(m => new
+                        {
+                            Id = m.UserId,
+                            Username = m.User?.Username ?? "Unknown",
+                            DisplayName = m.User?.DisplayName ?? "",
+                            Avatar = m.User?.Avatar,
+                            IsAdmin = m.IsAdmin
+                        }).ToArray();
+
+                        var groupInfo = new
+                        {
+                            Id = group.Id,
+                            Name = group.Name,
+                            Description = group.Description,
+                            Avatar = group.Avatar,
+                            CreatedAt = group.CreatedAt,
+                            Members = members
+                        };
+
+                        var response = new ApiResponse
+                        {
+                            Success = true,
+                            Message = "Member added successfully",
+                            Data = groupInfo
+                        };
+
+                        await SendResponseAsync(response);
+
+                        // Broadcast обновление группы всем участникам
+                        await BroadcastGroupUpdateAsync(group);
+                    }
+                }
+                else
+                {
+                    await SendResponseAsync(false, result.Message ?? "Failed to add member");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding member to group");
+                await SendResponseAsync(false, $"Error: {ex.Message}");
+            }
         }
     }
 }

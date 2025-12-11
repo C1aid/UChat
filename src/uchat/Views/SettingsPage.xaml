@@ -4,13 +4,14 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d" 
-             d:DesignHeight="700" d:DesignWidth="1000"
+             d:DesignHeight="750" d:DesignWidth="1000"
              HorizontalAlignment="Stretch"
              HorizontalContentAlignment="Stretch">
+    
     <UserControl.Resources>
         <Style x:Key="SoftButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#F5F5F5"/>
-            <Setter Property="Foreground" Value="#3D3528"/>
+            <Setter Property="Background" Value="{DynamicResource MessageInputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}"/>
             <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="Medium"/>
@@ -24,14 +25,31 @@
                         <Border x:Name="border" 
                                 Background="{TemplateBinding Background}" 
                                 CornerRadius="15">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="6" ShadowDepth="1" Color="#20000000" Opacity="0.1"/>
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#E8E8E8"/>
+                                <Setter TargetName="border" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="IconButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.6"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -40,8 +58,8 @@
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#8B7355"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+            <Setter Property="Foreground" Value="White"/> 
             <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -56,7 +74,7 @@
                                 Background="{TemplateBinding Background}" 
                                 CornerRadius="15">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="8" ShadowDepth="2" Color="#40000000" Opacity="0.2"/>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Color="Black" Opacity="0.2"/>
                             </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -71,31 +89,26 @@
         </Style>
 
         <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SoftButtonStyle}">
-            <Setter Property="Background" Value="#F5D5D5"/>
-            <Setter Property="Foreground" Value="#8B2E2E"/>
+            <Setter Property="Background" Value="{DynamicResource DeleteButtonBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource DeleteTextBrush}"/>
         </Style>
 
         <Style x:Key="ThemeButtonStyle" TargetType="RadioButton">
-            <Setter Property="Background" Value="#F5F5F5"/>
-            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Background" Value="{DynamicResource ChatListBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Height" Value="70"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="20,15"/>
-            <Setter Property="Template">
+            <Setter Property="Height" Value="80"/> <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="Margin" Value="5"/> <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="border" 
                                 Background="{TemplateBinding Background}" 
-                                CornerRadius="15"
-                                Margin="0,0,0,10">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="10" 
-                                                 ShadowDepth="0" 
-                                                 Color="#20000000" 
-                                                 Opacity="0.1"/>
-                            </Border.Effect>
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="18">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -106,15 +119,12 @@
                                          Grid.Column="0" 
                                          Width="20" 
                                          Height="20" 
-                                         Margin="0,0,15,0"
+                                         Margin="15,0,15,0"
                                          VerticalAlignment="Center"
                                          HorizontalAlignment="Left"
                                          StrokeThickness="2">
-                                    <Ellipse.Fill>
-                                        <SolidColorBrush Color="Transparent"/>
-                                    </Ellipse.Fill>
                                     <Ellipse.Stroke>
-                                        <SolidColorBrush Color="#CCCCCC"/>
+                                        <SolidColorBrush Color="{DynamicResource BorderColor}"/>
                                     </Ellipse.Stroke>
                                 </Ellipse>
                                 
@@ -125,13 +135,13 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#E8E0D0"/>
-                                <Setter TargetName="radioCircle" Property="Fill" Value="#8B7355"/>
-                                <Setter TargetName="radioCircle" Property="Stroke" Value="#8B7355"/>
-                                <Setter Property="Foreground" Value="#1D1D1F"/>
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource MessageInputBrush}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="radioCircle" Property="Fill" Value="{DynamicResource AccentBrush}"/>
+                                <Setter TargetName="radioCircle" Property="Stroke" Value="{DynamicResource AccentBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#F0F0F0"/>
+                                <Setter TargetName="border" Property="Opacity" Value="0.8"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -144,30 +154,91 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="FontSize" Value="16"/>
-            <Setter Property="Foreground" Value="#1D1D1F"/>
+            <Setter Property="Foreground" Value="{DynamicResource ForegroundPrimaryBrush}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="ScrollThumb" TargetType="{x:Type Thumb}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Border Background="{DynamicResource ScrollBarThumbBrush}" 
+                                CornerRadius="3" 
+                                BorderThickness="0"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MinimalScrollBar" TargetType="{x:Type ScrollBar}">
+            <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width" Value="6"/> 
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="GridRoot" Width="6" Background="Transparent">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true" Focusable="false">
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource ScrollThumb}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ModernScrollViewer" TargetType="{x:Type ScrollViewer}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollViewer}">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" 
+                                                  CanContentScroll="{TemplateBinding CanContentScroll}" 
+                                                  Grid.Column="0" 
+                                                  Margin="{TemplateBinding Padding}" 
+                                                  Content="{TemplateBinding Content}"/>
+                            
+                            <ScrollBar x:Name="PART_VerticalScrollBar" 
+                                       Grid.Column="1" 
+                                       Margin="0,15,4,15"
+                                       Style="{StaticResource MinimalScrollBar}"
+                                       Maximum="{TemplateBinding ScrollableHeight}" 
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" 
+                                       Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" 
+                                       ViewportSize="{TemplateBinding ViewportHeight}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </UserControl.Resources>
 
     <Grid Background="Transparent" HorizontalAlignment="Stretch">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalAlignment="Stretch">
-            <Grid Margin="50,50,0,50" HorizontalAlignment="Stretch">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" 
+                      HorizontalScrollBarVisibility="Disabled" 
+                      HorizontalAlignment="Stretch" 
+                      Style="{StaticResource ModernScrollViewer}">
+            
+            <Grid Margin="50,40,50,50" HorizontalAlignment="Stretch" MaxWidth="1000">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/> <RowDefinition Height="Auto"/> <RowDefinition Height="Auto"/> <RowDefinition Height="Auto"/> </Grid.RowDefinitions>
 
-                <!-- Header with Save button -->
-                <Grid Grid.Row="0" Margin="0,0,0,40">
+                <Grid Grid.Row="0" Margin="0,0,0,30">
                     <TextBlock Text="Settings"
                                FontSize="36"
                                FontWeight="Bold"
-                               Foreground="#3D3528"
+                               Foreground="{DynamicResource ForegroundPrimaryBrush}"
                                VerticalAlignment="Center">
                         <TextBlock.Effect>
-                            <DropShadowEffect BlurRadius="5" ShadowDepth="1" Color="#F5F5DC" Opacity="0.2"/>
+                             <DropShadowEffect BlurRadius="10" ShadowDepth="2" Color="Black" Opacity="0.3"/>
                         </TextBlock.Effect>
                     </TextBlock>
                     <Button x:Name="SaveButton"
@@ -175,90 +246,72 @@
                             Style="{StaticResource PrimaryButtonStyle}"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
-                            Width="280"
+                            Width="200" 
                             Click="SaveButton_Click"/>
                 </Grid>
 
-                <!-- Profile Section -->
                 <Border Grid.Row="1" 
-                        Background="White" 
+                        Background="{DynamicResource LeftPanelBrush}" 
                         CornerRadius="25" 
                         Padding="40" 
                         Margin="0,0,0,25"
                         HorizontalAlignment="Stretch"
-                        BorderThickness="1.5">
-                    <Border.BorderBrush>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#80FFFFFF" Offset="0"/>
-                            <GradientStop Color="#20FFFFFF" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.BorderBrush>
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource BorderBrushColor}">
+                    
                     <Border.Effect>
-                        <DropShadowEffect BlurRadius="25" 
-                                         ShadowDepth="0" 
-                                         Color="#30000000" 
-                                         Opacity="0.12"/>
+                        <DropShadowEffect BlurRadius="25" ShadowDepth="0" Color="Black" Opacity="0.2"/>
                     </Border.Effect>
                     
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/> <ColumnDefinition Width="*"/>    </Grid.ColumnDefinitions>
 
-                        <!-- Avatar -->
                         <StackPanel Grid.Column="0" 
-                                  Margin="0,0,30,0"
-                                  HorizontalAlignment="Center">
-                            <Grid>
-                                <Button x:Name="AvatarButton"
-                                        Width="120"
-                                        Height="120"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Click="AvatarButton_Click"
-                                        HorizontalAlignment="Center">
-                                    <Grid>
-                                        <Ellipse x:Name="AvatarCircle" 
-                                                 Width="120" 
-                                                 Height="120"
-                                                 Stroke="#E0E0E0"
-                                                 StrokeThickness="2">
-                                            <Ellipse.Fill>
-                                                <ImageBrush x:Name="AvatarImage" Stretch="UniformToFill"/>
-                                            </Ellipse.Fill>
-                                        </Ellipse>
-                                        <Viewbox Width="16" Height="16" Stretch="Uniform"
-                                                HorizontalAlignment="Right"
-                                                VerticalAlignment="Top"
-                                                Margin="0,0,-5,-5">
-                                            <Canvas Width="256" Height="256">
-                                                <Path Data="M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z" 
-                                          Fill="{DynamicResource ForegroundSecondaryBrush}"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                    </Grid>
-                                </Button>
-                            </Grid>
+                                    Margin="0,0,40,0" 
+                                    VerticalAlignment="Top">
+                            <Button x:Name="AvatarButton"
+                                    Style="{StaticResource IconButtonStyle}"
+                                    Width="120"
+                                    Height="120"
+                                    Click="AvatarButton_Click"
+                                    HorizontalAlignment="Center">
+                                <Grid>
+                                    <Ellipse x:Name="AvatarCircle" 
+                                             Width="120" 
+                                             Height="120"
+                                             Stroke="{DynamicResource BorderBrushColor}"
+                                             StrokeThickness="2">
+                                        <Ellipse.Fill>
+                                            <ImageBrush x:Name="AvatarImage" Stretch="UniformToFill"/>
+                                        </Ellipse.Fill>
+                                    </Ellipse>
+                                    <Viewbox Width="16" Height="16" Stretch="Uniform"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            Margin="0,0,-5,-5">
+                                        <Canvas Width="256" Height="256">
+                                            <Path Data="M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z" 
+                                          Fill="{DynamicResource AccentBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Grid>
+                            </Button>
                         </StackPanel>
 
-                        <!-- Profile Fields -->
                         <StackPanel Grid.Column="1">
-                            <!-- Name Field -->
                             <StackPanel Margin="0,0,0,20">
                                 <Grid Margin="0,0,0,8">
                                     <TextBlock Text="Name"
-                                               Foreground="#666666"
+                                               Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                                FontSize="13"
                                                FontWeight="Medium"
                                                VerticalAlignment="Center"/>
-                                    <Button Background="Transparent"
-                                            BorderThickness="0"
+                                    <Button Style="{StaticResource IconButtonStyle}"
                                             HorizontalAlignment="Right"
                                             Padding="5"
-                                            Cursor="Hand"
                                             Click="EditName_Click">
-                                        <Viewbox Width="16" Height="16" Stretch="Uniform">
+                                        <Viewbox Width="25" Height="25" Stretch="Uniform">
                                             <Canvas Width="256" Height="256">
                                                 <Path Data="M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z" 
                                           Fill="{DynamicResource ForegroundSecondaryBrush}"/>
@@ -266,126 +319,76 @@
                                         </Viewbox>
                                     </Button>
                                 </Grid>
-                                <Border Background="#F8F8F8" 
+                                <Border Background="{DynamicResource MessageInputBrush}" 
                                         CornerRadius="12" 
                                         Padding="18,14"
-                                        BorderThickness="1"
-                                        BorderBrush="#E0E0E0">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
-                                    </Border.Effect>
+                                        BorderThickness="0">
                                     <TextBox x:Name="DisplayNameBox"
                                              Style="{StaticResource ModernTextBox}"/>
                                 </Border>
                             </StackPanel>
 
-                            <!-- Username Field -->
-                            <StackPanel Margin="0,0,0,20">
-                                <Grid Margin="0,0,0,8">
-                                    <TextBlock Text="Username"
-                                               Foreground="#666666"
-                                               FontSize="13"
-                                               FontWeight="Medium"
-                                               VerticalAlignment="Center"/>
-                                    <Button Background="Transparent"
-                                            BorderThickness="0"
-                                            HorizontalAlignment="Right"
-                                            Padding="5"
-                                            Cursor="Hand"
-                                            Click="EditUsername_Click">
-                                        <Image Source="/Assets/Images/edit.png" 
-                                               Width="16" 
-                                               Height="16" 
-                                               Stretch="Uniform"
-                                               RenderOptions.BitmapScalingMode="HighQuality"/>
-                                    </Button>
-                                </Grid>
-                                <Border Background="#F5F5F5" 
-                                        CornerRadius="10" 
-                                        Padding="15,12"
-                                        BorderThickness="0"
-                                        BorderBrush="#40FFFFFF">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
-                                    </Border.Effect>
-                                    <TextBox x:Name="UsernameBox"
-                                             Style="{StaticResource ModernTextBox}"/>
-                                </Border>
-                            </StackPanel>
+                            
 
-                            <!-- Profile Info Field -->
                             <StackPanel>
                                 <Grid Margin="0,0,0,8">
                                     <TextBlock Text="Profile info"
-                                               Foreground="#666666"
+                                               Foreground="{DynamicResource ForegroundSecondaryBrush}"
                                                FontSize="13"
                                                FontWeight="Medium"
                                                VerticalAlignment="Center"/>
-                                    <Button Background="Transparent"
-                                            BorderThickness="0"
+                                    <Button Style="{StaticResource IconButtonStyle}"
                                             HorizontalAlignment="Right"
                                             Padding="5"
-                                            Cursor="Hand"
                                             Click="EditProfileInfo_Click">
-                                        <Image Source="/Assets/Images/edit.png" 
-                                               Width="16" 
-                                               Height="16" 
-                                               Stretch="Uniform"
-                                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        <Viewbox Width="25" Height="25" Stretch="Uniform">
+                                            <Canvas Width="256" Height="256">
+                                                <Path Data="M229.66,58.34l-32-32a8,8,0,0,0-11.32,0l-96,96A8,8,0,0,0,88,128v32a8,8,0,0,0,8,8h32a8,8,0,0,0,5.66-2.34l96-96A8,8,0,0,0,229.66,58.34ZM124.69,152H104V131.31l64-64L188.69,88ZM200,76.69,179.31,56,192,43.31,212.69,64ZM224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Z" 
+                                          Fill="{DynamicResource ForegroundSecondaryBrush}"/>
+                                            </Canvas>
+                                        </Viewbox>
                                     </Button>
                                 </Grid>
-                                <Border Background="#F5F5F5" 
-                                        CornerRadius="10" 
-                                        Padding="15,12"
-                                        BorderThickness="0"
-                                        BorderBrush="#40FFFFFF">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="18" ShadowDepth="4" Color="#22000000" Opacity="0.18"/>
-                                    </Border.Effect>
+                                <Border Background="{DynamicResource MessageInputBrush}" 
+                                        CornerRadius="12" 
+                                        Padding="18,14"
+                                        BorderThickness="0">
                                     <TextBox x:Name="ProfileInfoBox"
                                              Style="{StaticResource ModernTextBox}"
                                              TextWrapping="Wrap"
                                              AcceptsReturn="True"
-                                             MinHeight="50"/>
+                                             MinHeight="60"/>
                                 </Border>
                             </StackPanel>
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- Theme Section -->
                 <Border Grid.Row="2" 
-                        Background="White" 
+                        Background="{DynamicResource LeftPanelBrush}" 
                         CornerRadius="25" 
                         Padding="40" 
                         Margin="0,0,0,25"
                         HorizontalAlignment="Stretch"
-                        BorderThickness="1.5">
-                    <Border.BorderBrush>
-                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#80FFFFFF" Offset="0"/>
-                            <GradientStop Color="#20FFFFFF" Offset="1"/>
-                        </LinearGradientBrush>
-                    </Border.BorderBrush>
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource BorderBrushColor}">
+                    
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="25" 
                                          ShadowDepth="0" 
-                                         Color="#30000000" 
-                                         Opacity="0.12"/>
+                                         Color="Black" 
+                                         Opacity="0.2"/>
                     </Border.Effect>
                     
                     <StackPanel>
                         <TextBlock Text="Theme"
                                    FontSize="24"
                                    FontWeight="Bold"
-                                   Foreground="#3D3528"
+                                   Foreground="{DynamicResource ForegroundPrimaryBrush}"
                                    Margin="0,0,0,25">
-                            <TextBlock.Effect>
-                                <DropShadowEffect BlurRadius="3" ShadowDepth="1" Color="#F5F5DC" Opacity="0.2"/>
-                            </TextBlock.Effect>
                         </TextBlock>
 
-                        <StackPanel>
+                        <UniformGrid Columns="2">
                             <RadioButton x:Name="LatteThemeRadio"
                                          Content="Latte"
                                          GroupName="Theme"
@@ -397,11 +400,12 @@
                                             <TextBlock Text="Latte" 
                                                        FontSize="15" 
                                                        FontWeight="Medium"
-                                                       Foreground="#1D1D1F"/>
-                                            <TextBlock Text="Warm, earthy tones for a cozy vibe" 
+                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                            <TextBlock Text="Warm, earthy tones" 
                                                        FontSize="12" 
-                                                       Foreground="#666666"
-                                                       Margin="35,5,0,0"/>
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                       Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </RadioButton.ContentTemplate>
@@ -418,104 +422,108 @@
                                             <TextBlock Text="Matcha" 
                                                        FontSize="15" 
                                                        FontWeight="Medium"
-                                                       Foreground="#1D1D1F"/>
-                                            <TextBlock Text="Fresh greens with a sweet pink touch" 
+                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                            <TextBlock Text="Fresh greens &amp; pink" 
                                                        FontSize="12" 
-                                                       Foreground="#666666"
-                                                       Margin="35,5,0,0"/>
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                       Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
                             <RadioButton x:Name="AcaiThemeRadio"
-                                         Content="Ocean Breeze"
+                                         Content="Acai"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"
                                          Checked="ThemeRadioButton_Checked">
                                 <RadioButton.ContentTemplate>
                                     <DataTemplate>
                                         <StackPanel>
-                                            <TextBlock Text="Ocean Breeze" 
+                                            <TextBlock Text="Acai" 
                                                        FontSize="15" 
                                                        FontWeight="Medium"
-                                                       Foreground="#1D1D1F"/>
-                                            <TextBlock Text="Cold, airy, oceanic vibes" 
+                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                            <TextBlock Text="Deep organic violet" 
                                                        FontSize="12" 
-                                                       Foreground="#666666"
-                                                       Margin="35,5,0,0"/>
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                       Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
                             <RadioButton x:Name="EarlGreyThemeRadio"
-                                         Content="Deep Space"
+                                         Content="Earl Grey"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"
                                          Checked="ThemeRadioButton_Checked">
                                 <RadioButton.ContentTemplate>
                                     <DataTemplate>
                                         <StackPanel>
-                                            <TextBlock Text="Deep Space" 
+                                            <TextBlock Text="Earl Grey" 
                                                        FontSize="15" 
                                                        FontWeight="Medium"
-                                                       Foreground="#1D1D1F"/>
-                                            <TextBlock Text="Dark, strict, modern - Discord-like" 
+                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                            <TextBlock Text="Dark slate &amp; cool blue" 
                                                        FontSize="12" 
-                                                       Foreground="#666666"
-                                                       Margin="35,5,0,0"/>
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                       Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
                             <RadioButton x:Name="MulledWineThemeRadio"
-                                         Content="Warm Glow"
+                                         Content="Mulled  Wine"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"
                                          Checked="ThemeRadioButton_Checked">
                                 <RadioButton.ContentTemplate>
                                     <DataTemplate>
                                         <StackPanel>
-                                            <TextBlock Text="Warm Glow" 
+                                            <TextBlock Text="Mulled Wine" 
                                                        FontSize="15" 
                                                        FontWeight="Medium"
-                                                       Foreground="#1D1D1F"/>
-                                            <TextBlock Text="Dark burgundy with golden accents" 
+                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                            <TextBlock Text="Burgundy &amp; spiced gold" 
                                                        FontSize="12" 
-                                                       Foreground="#666666"
-                                                       Margin="35,5,0,0"/>
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                       Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
 
                             <RadioButton x:Name="AnchanThemeRadio"
-                                         Content="Northern Cold"
+                                         Content="Anchan"
                                          GroupName="Theme"
                                          Style="{StaticResource ThemeButtonStyle}"
                                          Checked="ThemeRadioButton_Checked">
                                 <RadioButton.ContentTemplate>
                                     <DataTemplate>
                                         <StackPanel>
-                                            <TextBlock Text="Northern Cold" 
+                                            <TextBlock Text="Anchan" 
                                                        FontSize="15" 
                                                        FontWeight="Medium"
-                                                       Foreground="#1D1D1F"/>
-                                            <TextBlock Text="Light, minimalistic, bluish-steel" 
+                                                       Foreground="{DynamicResource ForegroundPrimaryBrush}"/>
+                                            <TextBlock Text="White &amp; butterfly pea blue" 
                                                        FontSize="12" 
-                                                       Foreground="#666666"
-                                                       Margin="35,5,0,0"/>
+                                                       Foreground="{DynamicResource ForegroundSecondaryBrush}"
+                                                       Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </RadioButton.ContentTemplate>
                             </RadioButton>
-                        </StackPanel>
+                        </UniformGrid>
                     </StackPanel>
                 </Border>
 
-                <!-- Action Buttons -->
                 <Grid Grid.Row="3" Margin="0,20,0,0">
                     <Button x:Name="DeleteAccountButton"
                             Content="Delete account"

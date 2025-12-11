@@ -30,8 +30,6 @@
     <Resource Include="Assets\Images\logo.png" />
     <Resource Include="Assets\Images\emoji.png" />
     <Resource Include="Assets\Images\send.png" />
-    <Resource Include="Assets\Images\search.png" />
-    <Resource Include="Assets\Images\call.png" />
     <Resource Include="Assets\Images\add.png" />
     <Resource Include="Assets\Images\edit.png" />
     <Resource Include="Assets\Images\direct_messages.png" />

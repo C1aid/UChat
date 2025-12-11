@@ -41,6 +41,8 @@
     <SolidColorBrush x:Key="DeleteButtonBrush" Color="#FFEBEE" Opacity="1.0"/>
     <SolidColorBrush x:Key="DeleteTextBrush" Color="#E57373"/>
 
+    <SolidColorBrush x:Key="ScrollBarThumbBrush" Color="#4A90E2" Opacity="0.4"/>
+
     <Style x:Key="RoundButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="14"/>
         <Setter Property="Height" Value="14"/>

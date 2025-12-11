@@ -24,7 +24,7 @@ using Microsoft.Win32;
 
 namespace uchat
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, System.ComponentModel.INotifyPropertyChanged
     {
         private readonly NetworkClient? _network;
         private readonly UserSession _userSession;
@@ -48,6 +48,29 @@ namespace uchat
 
         public ObservableCollection<MessageDto> ChatMessages { get; set; } = new ObservableCollection<MessageDto>();
         public ObservableCollection<ChatInfoDto> ChatList { get; set; } = new ObservableCollection<ChatInfoDto>();
+        public ObservableCollection<ChatInfoDto> GroupChats { get; set; } = new ObservableCollection<ChatInfoDto>();
+        public ObservableCollection<GroupMemberInfo> GroupMembers { get; set; } = new ObservableCollection<GroupMemberInfo>();
+        
+        private byte[]? _currentGroupAvatar = null;
+
+        // Property for group avatar binding
+        public byte[]? GroupAvatarData
+        {
+            get => _currentGroupAvatar;
+            set
+            {
+                _currentGroupAvatar = value;
+                OnPropertyChanged(nameof(GroupAvatarData));
+            }
+        }
+
+        public class GroupMemberInfo
+        {
+            public int Id { get; set; }
+            public string Username { get; set; } = "";
+            public string DisplayName { get; set; } = "";
+            public byte[]? Avatar { get; set; }
+        }
 
         private bool _isManuallyMaximized = false;
         private double _restoreWidth;
@@ -110,20 +133,55 @@ namespace uchat
 
             _network.MessageReceived += OnMessageReceived;
             _network.ConnectionLost += OnConnectionLost;
+            _network.Reconnecting += OnReconnecting;
+            _network.Reconnected += OnReconnected;
 
             ChatsList.SelectionChanged += async (sender, e) =>
             {
-                if (SettingsView.Visibility == Visibility.Visible || ProfileView.Visibility == Visibility.Visible)
+                // КРИТИЧНО: Гарантируем правильный ItemsSource перед обработкой выбора
+                EnsureCorrectItemsSource();
+                
+                if (SettingsView.Visibility == Visibility.Visible)
                 {
                     ChatsList.SelectedItem = null;
                     return;
                 }
                 
+                // ChatsList может содержать либо приватные чаты, либо группы в зависимости от вкладки
                 if (ChatsList.SelectedItem is ChatInfoDto selectedChat)
                 {
-                    await OpenChatAsync(selectedChat.Id);
+                    // Дополнительная проверка: если выбрана группа, но мы в режиме приватных чатов - игнорируем
+                    var isGroupsMode = CreateGroupButton != null && CreateGroupButton.Visibility == Visibility.Visible;
+                    if (selectedChat.IsGroup && !isGroupsMode)
+                    {
+                        // Группа в неправильной вкладке - игнорируем выбор
+                        ChatsList.SelectedItem = null;
+                        return;
+                    }
+                    if (!selectedChat.IsGroup && isGroupsMode)
+                    {
+                        // Приватный чат в неправильной вкладке - игнорируем выбор
+                        ChatsList.SelectedItem = null;
+                        return;
+                    }
+                    
+                    if (selectedChat.IsGroup)
+                    {
+                        await OpenGroupChatAsync(selectedChat.Id);
+                    }
+                    else
+                    {
+                        await OpenChatAsync(selectedChat.Id);
+                    }
                 }
             };
+
+
+            // Инициализируем GroupMembersList
+            if (GroupMembersList != null)
+            {
+                GroupMembersList.ItemsSource = GroupMembers;
+            }
 
             if (SearchChatBox != null)
             {
@@ -149,6 +207,9 @@ namespace uchat
 
                 SearchChatBox.TextChanged += (s, e) =>
                 {
+                    // КРИТИЧНО: Гарантируем правильный ItemsSource перед фильтрацией
+                    EnsureCorrectItemsSource();
+                    
                     if (SearchChatBox.Text != "Search")
                     {
                         FilterChats(SearchChatBox.Text);
@@ -166,6 +227,12 @@ namespace uchat
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // Устанавливаем начальный ItemsSource для ChatsList (приватные чаты по умолчанию)
+            if (ChatsList != null && ChatsList.ItemsSource == null)
+            {
+                ChatsList.ItemsSource = ChatList;
+            }
+            
             await LoadChatsAsync();
         }
 
@@ -257,8 +324,15 @@ namespace uchat
                     return;
                 }
 
-                if (_currentRoomId == roomId)
+                // If switching to a different chat, reset history loaded flag
+                if (_currentRoomId != roomId)
                 {
+                    _historyLoaded = false;
+                    _lastLoadedRoomId = 0;
+                }
+                else if (_currentRoomId == roomId && _historyLoaded)
+                {
+                    // Same chat, history already loaded - don't reload
                     return;
                 }
 
@@ -269,41 +343,62 @@ namespace uchat
 
                 try
                 {
-                    var chat = ChatList.FirstOrDefault(c => c.Id == roomId);
-                    if (chat != null)
+                    // OpenChatAsync используется только для приватных чатов
+                    var chat = ChatList.FirstOrDefault(c => c.Id == roomId && !c.IsGroup);
+                    if (chat == null)
                     {
-                        chat.UnreadCount = 0;
-                        
-                        _currentRoomId = roomId;
-                        
-                        lock (_profileLoadLock)
-                        {
-                            _profileLoadCts?.Cancel();
-                            _lastLoadedProfileUserId = 0;
-                        }
-                        
-                        ChatMessages.Clear();
-                        if (ProfileName != null) ProfileName.Text = "";
-                        if (ProfileUsername != null) ProfileUsername.Text = "";
-                        if (ProfileInfo != null) ProfileInfo.Text = "";
-                        if (ProfileAvatar != null) ProfileAvatar.Fill = new SolidColorBrush(Colors.Gray);
-                        if (ChatHeaderAvatar != null) ChatHeaderAvatar.Fill = new SolidColorBrush(Colors.Gray);
-                        
-                        Title = $"Uchat - Chat with {chat.DisplayName ?? chat.OtherUsername ?? "Unknown"}";
-                        if (ChatHeaderName != null)
-                        {
-                            ChatHeaderName.Text = chat.DisplayName ?? chat.OtherUsername ?? "Unknown";
-                        }
-                        ChatHeaderPanel.Visibility = Visibility.Visible;
-                        MessageInputPanel.Visibility = Visibility.Visible;
-                        if (UserProfilePanel != null)
-                        {
-                            UserProfilePanel.Visibility = Visibility.Visible;
-                        }
-                        RightPanelColumn.Width = new GridLength(320);
-                        MainContentGrid.Margin = new Thickness(6, 12, 0, 12);
-                        MessageInput.Focus();
+                        _isOpeningChat = false;
+                        _openingChatCts?.Cancel();
+                        return;
                     }
+
+                    chat.UnreadCount = 0;
+                    
+                    _currentRoomId = roomId;
+                    
+                    lock (_profileLoadLock)
+                    {
+                        _profileLoadCts?.Cancel();
+                        _lastLoadedProfileUserId = 0;
+                    }
+                    
+                    ChatMessages.Clear();
+                    if (ProfileName != null) ProfileName.Text = "";
+                    if (ProfileUsername != null) ProfileUsername.Text = "";
+                    if (ProfileInfo != null) ProfileInfo.Text = "";
+                    if (ProfileAvatar != null) ProfileAvatar.Fill = new SolidColorBrush(Colors.Gray);
+                    if (ChatHeaderAvatar != null)
+                    {
+                        ChatHeaderAvatar.Fill = new SolidColorBrush(Colors.Gray);
+                        // Показываем аватар для приватных чатов
+                        ChatHeaderAvatar.Visibility = Visibility.Visible;
+                    }
+                    
+                    // Switch to MessagesView when opening chat
+                    MessagesView.Visibility = Visibility.Visible;
+                    ProfileView.Visibility = Visibility.Collapsed;
+                    SettingsView.Visibility = Visibility.Collapsed;
+                    
+                    Title = $"Uchat - Chat with {chat.DisplayName ?? chat.OtherUsername ?? "Unknown"}";
+                    if (ChatHeaderName != null)
+                    {
+                        ChatHeaderName.Text = chat.DisplayName ?? chat.OtherUsername ?? "Unknown";
+                    }
+                    ChatHeaderPanel.Visibility = Visibility.Visible;
+                    MessageInputPanel.Visibility = Visibility.Visible;
+                    
+                    // Для приватных чатов показываем UserProfilePanel
+                    if (UserProfilePanel != null)
+                    {
+                        UserProfilePanel.Visibility = Visibility.Visible;
+                    }
+                    if (GroupInfoPanel != null)
+                    {
+                        GroupInfoPanel.Visibility = Visibility.Collapsed;
+                    }
+                    RightPanelColumn.Width = new GridLength(320);
+                    MainContentGrid.Margin = new Thickness(6, 12, 0, 12);
+                    MessageInput.Focus();
 
                     _ = _network.SendMessageAsync($"/join {roomId}").ContinueWith(task =>
                     {
@@ -439,6 +534,41 @@ namespace uchat
                 {
                     ProcessMessageDeleted(deleteData);
                 }
+                else if (response.Message == "Group created successfully" && response.Data is JsonElement groupData)
+                {
+                    ProcessGroupCreated(groupData);
+                }
+                else if (response.Message == "Group info" && response.Data is JsonElement groupInfoData)
+                {
+                    ProcessGroupInfo(groupInfoData);
+                }
+                else if (response.Message == "Left group successfully")
+                {
+                    // Обновляем список чатов после выхода из группы
+                    _ = LoadChatsAsync();
+                }
+                else if (response.Message == "Group updated")
+                {
+                    // Обрабатываем обновление группы
+                    if (response.Data is JsonElement updatedGroupData)
+                    {
+                        ProcessGroupUpdate(updatedGroupData);
+                    }
+                }
+                else if (response.Message == "Member added successfully" && response.Data is JsonElement memberAddedData)
+                {
+                    ProcessGroupInfo(memberAddedData);
+                }
+                else if (response.Message.Contains("started a chat with you") && response.Data is JsonElement newChatData)
+                {
+                    // Обрабатываем уведомление о новом приватном чате
+                    ProcessNewPrivateChatNotification(newChatData);
+                }
+                else if (response.Message == "You were added to a group" && response.Data is JsonElement addedToGroupData)
+                {
+                    // Обрабатываем уведомление о добавлении в группу
+                    ProcessAddedToGroupNotification(addedToGroupData);
+                }
             }
             catch
             {
@@ -458,13 +588,22 @@ namespace uchat
                 if (chats != null)
                 {
                     ChatList.Clear();
+                    GroupChats.Clear();
                     foreach (var chat in chats)
                     {
-                        ChatList.Add(chat);
+                        // Разделяем чаты: приватные в ChatList, группы в GroupChats
+                        if (chat.IsGroup)
+                        {
+                            GroupChats.Add(chat);
+                        }
+                        else
+                        {
+                            ChatList.Add(chat);
+                        }
                     }
 
                     var tasks = chats
-                        .Where(chat => chat.Avatar == null && chat.OtherUserId > 0)
+                        .Where(chat => chat.Avatar == null && chat.OtherUserId > 0 && !chat.IsGroup)
                         .Select(async chat =>
                         {
                             var profile = await LoadUserProfileForChatAsync(chat.OtherUserId);
@@ -472,7 +611,8 @@ namespace uchat
                             {
                                 _ = Dispatcher.InvokeAsync(() =>
                                 {
-                                    var existingChat = ChatList.FirstOrDefault(c => c.Id == chat.Id);
+                                    // КРИТИЧНО: Проверяем только в ChatList, не в GroupChats
+                                    var existingChat = ChatList.FirstOrDefault(c => c.Id == chat.Id && !c.IsGroup);
                                     if (existingChat != null)
                                     {
                                         // Сохраняем UnreadCount перед обновлением
@@ -496,6 +636,12 @@ namespace uchat
                         });
 
                     _ = Task.Run(async () => await Task.WhenAll(tasks));
+                    
+                    // КРИТИЧНО: Гарантируем правильный ItemsSource после загрузки списка чатов
+                    _ = Dispatcher.InvokeAsync(() =>
+                    {
+                        EnsureCorrectItemsSource();
+                    });
                 }
             }
             catch { }
@@ -591,10 +737,33 @@ namespace uchat
                         if (chats != null)
                         {
                             ChatList.Clear();
+                            GroupChats.Clear();
                             foreach (var chat in chats)
                             {
-                                ChatList.Add(chat);
+                                // Разделяем чаты: приватные в ChatList, группы в GroupChats
+                                if (chat.IsGroup)
+                                {
+                                    // КРИТИЧНО: Группы только в GroupChats
+                                    if (!GroupChats.Any(g => g.Id == chat.Id))
+                                    {
+                                        GroupChats.Add(chat);
+                                    }
+                                }
+                                else
+                                {
+                                    // КРИТИЧНО: Приватные чаты только в ChatList
+                                    if (!ChatList.Any(c => c.Id == chat.Id))
+                                    {
+                                        ChatList.Add(chat);
+                                    }
+                                }
                             }
+                            
+                            // КРИТИЧНО: Гарантируем правильный ItemsSource после загрузки
+                            _ = Dispatcher.InvokeAsync(() =>
+                            {
+                                EnsureCorrectItemsSource();
+                            });
                         }
                     }
                 }
@@ -628,7 +797,14 @@ namespace uchat
                     _lastLoadedProfileUserId = 0;
                 }
                 
-                ChatMessages.Clear();
+                // Only clear and reload history if this is a new chat or history wasn't loaded yet
+                // If reconnecting to the same chat, preserve existing messages
+                bool shouldLoadHistory = !_historyLoaded || _lastLoadedRoomId != chatResponse.RoomId;
+                
+                if (shouldLoadHistory)
+                {
+                    ChatMessages.Clear();
+                }
                 
                 if (ProfileName != null) ProfileName.Text = "";
                 if (ProfileUsername != null) ProfileUsername.Text = "";
@@ -636,7 +812,8 @@ namespace uchat
                 if (ProfileAvatar != null) ProfileAvatar.Fill = new SolidColorBrush(Colors.Gray);
                 if (ChatHeaderAvatar != null) ChatHeaderAvatar.Fill = new SolidColorBrush(Colors.Gray);
 
-                if (chatResponse.History != null && chatResponse.History.Length > 0)
+                // Only load history if it's a new chat or history wasn't loaded yet
+                if (shouldLoadHistory && chatResponse.History != null && chatResponse.History.Length > 0)
                 {
                     _ = Dispatcher.InvokeAsync(() =>
                     {
@@ -646,15 +823,24 @@ namespace uchat
                             PrefetchAttachmentIfNeeded(msg);
                         }
                         
+                        // Mark history as loaded for this room
+                        _historyLoaded = true;
+                        _lastLoadedRoomId = chatResponse.RoomId;
+                        
                         if (MessagesList.Items.Count > 0)
                         {
                             MessagesList.ScrollIntoView(MessagesList.Items[MessagesList.Items.Count - 1]);
                         }
                         
-                        // Обновляем последнее сообщение в списке чатов
-                        var chat = ChatList.FirstOrDefault(c => c.Id == chatResponse.RoomId);
-                        if (chat != null)
+                        // Обновляем последнее сообщение в списке чатов (проверяем оба списка)
+                        // КРИТИЧНО: обновляем только ту коллекцию, к которой относится чат
+                        var groupChat = GroupChats.FirstOrDefault(c => c.Id == chatResponse.RoomId);
+                        var privateChat = ChatList.FirstOrDefault(c => c.Id == chatResponse.RoomId);
+                        
+                        if (groupChat != null)
                         {
+                            // Это группа - обновляем только GroupChats
+                            var chat = groupChat;
                             // Ищем последнее текстовое сообщение в истории
                             var lastTextMessage = chatResponse.History
                                 .Where(m => m.MessageType == MessageType.Text && !string.IsNullOrEmpty(m.Content))
@@ -679,49 +865,123 @@ namespace uchat
                             // Сбрасываем счетчик непрочитанных при открытии чата
                             chat.UnreadCount = 0;
                             
-                            // Принудительно обновляем отображение
-                            var index = ChatList.IndexOf(chat);
+                            // Принудительно обновляем отображение в GroupChats
+                            var index = GroupChats.IndexOf(groupChat);
+                            if (index >= 0)
+                            {
+                                GroupChats.RemoveAt(index);
+                                GroupChats.Insert(index, groupChat);
+                            }
+                            
+                            // Убеждаемся, что ItemsSource не переключился на неправильную коллекцию
+                            EnsureCorrectItemsSource();
+                        }
+                        else if (privateChat != null)
+                        {
+                            // Это приватный чат - обновляем только ChatList
+                            var chat = privateChat;
+                            
+                            // Ищем последнее текстовое сообщение в истории
+                            var lastTextMessage = chatResponse.History
+                                .Where(m => m.MessageType == MessageType.Text && !string.IsNullOrEmpty(m.Content))
+                                .OrderByDescending(m => m.SentAt)
+                                .FirstOrDefault();
+                            
+                            if (lastTextMessage != null)
+                            {
+                                chat.LastMessage = lastTextMessage.Content;
+                                chat.LastMessageTime = lastTextMessage.SentAt;
+                            }
+                            else if (chatResponse.History.Length > 0)
+                            {
+                                // Если нет текстовых сообщений, берем последнее сообщение
+                                var lastMessage = chatResponse.History.Last();
+                                chat.LastMessageTime = lastMessage.SentAt;
+                            }
+                            
+                            // Сохраняем текущий UnreadCount перед обновлением
+                            int savedUnreadCount = chat.UnreadCount;
+                            
+                            // Сбрасываем счетчик непрочитанных при открытии чата
+                            chat.UnreadCount = 0;
+                            
+                            // Принудительно обновляем отображение в ChatList
+                            var index = ChatList.IndexOf(privateChat);
                             if (index >= 0)
                             {
                                 ChatList.RemoveAt(index);
-                                ChatList.Insert(index, chat);
+                                ChatList.Insert(index, privateChat);
                             }
+                            
+                            // Убеждаемся, что ItemsSource не переключился на неправильную коллекцию
+                            EnsureCorrectItemsSource();
                         }
                     });
                     
                 }
 
-                Title = $"Uchat - Chat with {chatResponse.TargetUser}";
+                // Проверяем, является ли чат группой
+                var groupChat = GroupChats.FirstOrDefault(c => c.Id == chatResponse.RoomId);
+                var privateChat = ChatList.FirstOrDefault(c => c.Id == chatResponse.RoomId);
                 
-                int userIdToLoad = chatResponse.OtherUserId;
-                
-                if (userIdToLoad <= 0)
+                if (groupChat != null)
                 {
-                    var chatInList = ChatList.FirstOrDefault(c => c.Id == chatResponse.RoomId);
-                    if (chatInList != null)
+                    // Для групповых чатов
+                    Title = $"Uchat - {chatResponse.TargetUser ?? "Group"}";
+                    if (ChatHeaderName != null)
                     {
-                        userIdToLoad = chatInList.OtherUserId;
+                        ChatHeaderName.Text = chatResponse.TargetUser ?? "Group";
                     }
+                    
+                    // Показываем GroupInfoPanel вместо UserProfilePanel
+                    if (UserProfilePanel != null)
+                    {
+                        UserProfilePanel.Visibility = Visibility.Collapsed;
+                    }
+                    if (GroupInfoPanel != null)
+                    {
+                        GroupInfoPanel.Visibility = Visibility.Visible;
+                    }
+                    RightPanelColumn.Width = new GridLength(320);
+                    MainContentGrid.Margin = new Thickness(6, 12, 0, 12);
+                    
+                    // Загружаем информацию о группе
+                    _ = LoadGroupInfoAsync(chatResponse.RoomId);
                 }
-                
-                var userId = userIdToLoad;
-                
-                if (ChatHeaderName != null)
+                else if (privateChat != null)
                 {
-                    ChatHeaderName.Text = chatResponse.TargetUser;
-                }
+                    // Для приватных чатов
+                    Title = $"Uchat - Chat with {chatResponse.TargetUser}";
+                    
+                    int userIdToLoad = chatResponse.OtherUserId;
+                    
+                    if (userIdToLoad <= 0)
+                    {
+                        userIdToLoad = privateChat.OtherUserId;
+                    }
                 
-                ChatHeaderPanel.Visibility = Visibility.Visible;
-                MessageInputPanel.Visibility = Visibility.Visible;
-                if (UserProfilePanel != null)
-                {
-                    UserProfilePanel.Visibility = Visibility.Visible;
-                }
-                RightPanelColumn.Width = new GridLength(320);
-                MainContentGrid.Margin = new Thickness(6, 12, 0, 12);
-                
-                MessageInput.Focus();
-                
+                    var userId = userIdToLoad;
+                    
+                    if (ChatHeaderName != null)
+                    {
+                        ChatHeaderName.Text = chatResponse.TargetUser;
+                    }
+                    
+                    ChatHeaderPanel.Visibility = Visibility.Visible;
+                    MessageInputPanel.Visibility = Visibility.Visible;
+                    if (UserProfilePanel != null)
+                    {
+                        UserProfilePanel.Visibility = Visibility.Visible;
+                    }
+                    if (GroupInfoPanel != null)
+                    {
+                        GroupInfoPanel.Visibility = Visibility.Collapsed;
+                    }
+                    RightPanelColumn.Width = new GridLength(320);
+                    MainContentGrid.Margin = new Thickness(6, 12, 0, 12);
+                    
+                    MessageInput.Focus();
+                    
                     if (userId > 0)
                     {
                         _ = LoadUserProfileAsync(userId);
@@ -732,9 +992,10 @@ namespace uchat
                     }
                     else
                     {
-                    if (UserProfilePanel != null)
-                    {
-                        UserProfilePanel.Visibility = Visibility.Visible;
+                        if (UserProfilePanel != null)
+                        {
+                            UserProfilePanel.Visibility = Visibility.Visible;
+                        }
                     }
                 }
 
@@ -765,6 +1026,13 @@ namespace uchat
                 var msgDto = JsonSerializer.Deserialize<MessageDto>(msgData.GetRawText(), options);
                 if (msgDto == null) return;
 
+                // Обрабатываем уведомление о новом чате
+                if (msgDto.MessageType == MessageType.NewChatNotification)
+                {
+                    ProcessNewChatNotification(msgDto);
+                    return;
+                }
+
                 if (msgDto.ChatRoomId == _currentRoomId)
                 {
                     _ = Dispatcher.InvokeAsync(() =>
@@ -779,7 +1047,11 @@ namespace uchat
                     
                     _ = Dispatcher.InvokeAsync(() =>
                     {
-                        var currentChat = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
+                        // Проверяем оба списка для текущего чата
+                        var currentGroupChat = GroupChats.FirstOrDefault(c => c.Id == _currentRoomId);
+                        var currentPrivateChat = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
+                        var currentChat = currentGroupChat ?? currentPrivateChat;
+                        
                         if (currentChat != null)
                         {
                             // Сбрасываем счетчик непрочитанных для открытого чата
@@ -791,24 +1063,56 @@ namespace uchat
                                 currentChat.LastMessage = msgDto.Content;
                                 currentChat.LastMessageTime = msgDto.SentAt;
                                 
-                                // Перемещаем чат в начало списка при новом сообщении
-                                var index = ChatList.IndexOf(currentChat);
-                                if (index > 0)
+                                // Перемещаем чат в начало ПРАВИЛЬНОГО списка при новом сообщении
+                                // КРИТИЧНО: обновляем только ту коллекцию, к которой относится чат
+                                if (currentGroupChat != null)
                                 {
-                                    ChatList.Move(index, 0);
+                                    // Это группа - обновляем только GroupChats
+                                    var index = GroupChats.IndexOf(currentGroupChat);
+                                    if (index > 0)
+                                    {
+                                        GroupChats.Move(index, 0);
+                                    }
+                                    else if (index == 0)
+                                    {
+                                        // Принудительно обновляем отображение, если чат уже на первом месте
+                                        var savedUnreadCount = currentGroupChat.UnreadCount;
+                                        GroupChats.RemoveAt(0);
+                                        GroupChats.Insert(0, currentGroupChat);
+                                        currentGroupChat.UnreadCount = savedUnreadCount;
+                                    }
+                                    // Убеждаемся, что ItemsSource не переключился на неправильную коллекцию
+                                    EnsureCorrectItemsSource();
                                 }
-                                else if (index == 0)
+                                else if (currentPrivateChat != null)
                                 {
-                                    // Принудительно обновляем отображение, если чат уже на первом месте
-                                    ChatList.RemoveAt(0);
-                                    ChatList.Insert(0, currentChat);
+                                    // Это приватный чат - обновляем только ChatList
+                                    var index = ChatList.IndexOf(currentPrivateChat);
+                                    if (index > 0)
+                                    {
+                                        ChatList.Move(index, 0);
+                                    }
+                                    else if (index == 0)
+                                    {
+                                        // Принудительно обновляем отображение, если чат уже на первом месте
+                                        var savedUnreadCount = currentPrivateChat.UnreadCount;
+                                        ChatList.RemoveAt(0);
+                                        ChatList.Insert(0, currentPrivateChat);
+                                        currentPrivateChat.UnreadCount = savedUnreadCount;
+                                    }
+                                    // Убеждаемся, что ItemsSource не переключился на неправильную коллекцию
+                                    EnsureCorrectItemsSource();
                                 }
                             }
                             
-                            _ = Task.Run(() =>
+                            // CalculateChatStatistics только для приватных чатов
+                            if (currentPrivateChat != null)
                             {
-                                Dispatcher.InvokeAsync(() => CalculateChatStatistics(currentChat.OtherUserId));
-                            });
+                                _ = Task.Run(() =>
+                                {
+                                    Dispatcher.InvokeAsync(() => CalculateChatStatistics(currentChat.OtherUserId));
+                                });
+                            }
                             
                             if (msgDto.UserId != _userSession.UserId && _lastLoadedProfileUserId != currentChat.OtherUserId)
                             {
@@ -831,64 +1135,87 @@ namespace uchat
             {
                 try
                 {
-                    var chat = ChatList.FirstOrDefault(c => c.Id == msgDto.ChatRoomId);
-                    if (chat != null)
+                    // Проверяем, является ли это группой или приватным чатом
+                    var groupChat = GroupChats.FirstOrDefault(c => c.Id == msgDto.ChatRoomId);
+                    var privateChat = ChatList.FirstOrDefault(c => c.Id == msgDto.ChatRoomId);
+                    
+                    if (groupChat != null)
                     {
-                        // Обновляем последнее сообщение только для текстовых сообщений
+                        // Обновляем групповой чат
                         if (msgDto.MessageType == MessageType.Text && !string.IsNullOrEmpty(msgDto.Content))
                         {
-                            chat.LastMessage = msgDto.Content;
-                            chat.LastMessageTime = msgDto.SentAt;
+                            groupChat.LastMessage = msgDto.Content;
+                            groupChat.LastMessageTime = msgDto.SentAt;
                         }
                         
                         // Увеличиваем счетчик непрочитанных, если это не текущий открытый чат и сообщение не от нас
                         if (msgDto.ChatRoomId != _currentRoomId && msgDto.UserId != _userSession.UserId)
                         {
-                            // Увеличиваем счетчик непрочитанных
-                            chat.UnreadCount = Math.Max(0, chat.UnreadCount) + 1;
+                            groupChat.UnreadCount = Math.Max(0, groupChat.UnreadCount) + 1;
                         }
                         
-                        // Перемещаем чат в начало списка
-                        var index = ChatList.IndexOf(chat);
+                        // Перемещаем чат в начало списка GroupChats
+                        var index = GroupChats.IndexOf(groupChat);
+                        if (index > 0)
+                        {
+                            GroupChats.Move(index, 0);
+                        }
+                        else if (index == 0)
+                        {
+                            // Принудительно обновляем отображение
+                            var savedUnreadCount = groupChat.UnreadCount;
+                            GroupChats.RemoveAt(0);
+                            GroupChats.Insert(0, groupChat);
+                            if (groupChat.UnreadCount != savedUnreadCount)
+                            {
+                                groupChat.UnreadCount = savedUnreadCount;
+                            }
+                        }
+                        
+                        // КРИТИЧНО: гарантируем правильный ItemsSource
+                        EnsureCorrectItemsSource();
+                    }
+                    else if (privateChat != null)
+                    {
+                        // Обновляем приватный чат - только ChatList
+                        if (msgDto.MessageType == MessageType.Text && !string.IsNullOrEmpty(msgDto.Content))
+                        {
+                            privateChat.LastMessage = msgDto.Content;
+                            privateChat.LastMessageTime = msgDto.SentAt;
+                        }
+                        
+                        // Увеличиваем счетчик непрочитанных, если это не текущий открытый чат и сообщение не от нас
+                        if (msgDto.ChatRoomId != _currentRoomId && msgDto.UserId != _userSession.UserId)
+                        {
+                            privateChat.UnreadCount = Math.Max(0, privateChat.UnreadCount) + 1;
+                        }
+                        
+                        // Перемещаем чат в начало списка ChatList
+                        var index = ChatList.IndexOf(privateChat);
                         if (index > 0)
                         {
                             ChatList.Move(index, 0);
                         }
                         else if (index == 0)
                         {
-                            // Принудительно обновляем отображение, если чат уже на первом месте
-                            var savedUnreadCount = chat.UnreadCount;
+                            // Принудительно обновляем отображение
+                            var savedUnreadCount = privateChat.UnreadCount;
                             ChatList.RemoveAt(0);
-                            ChatList.Insert(0, chat);
-                            // Убеждаемся, что UnreadCount не потерялся
-                            if (chat.UnreadCount != savedUnreadCount)
+                            ChatList.Insert(0, privateChat);
+                            if (privateChat.UnreadCount != savedUnreadCount)
                             {
-                                chat.UnreadCount = savedUnreadCount;
+                                privateChat.UnreadCount = savedUnreadCount;
                             }
                         }
+                        
+                        // КРИТИЧНО: гарантируем правильный ItemsSource
+                        EnsureCorrectItemsSource();
                     }
                     else
                     {
-                        // Создаем новый чат, если его нет в списке
-                        var displayName = msgDto.UserId == _userSession.UserId ? "Unknown" : msgDto.Username;
-                        
-                        var lastMessageText = msgDto.MessageType == MessageType.Text && !string.IsNullOrEmpty(msgDto.Content) 
-                            ? msgDto.Content 
-                            : "New message";
-                        
-                        var newChat = new ChatInfoDto
-                        {
-                            Id = msgDto.ChatRoomId,
-                            DisplayName = displayName,
-                            OtherUsername = displayName,
-                            LastMessage = lastMessageText,
-                            LastMessageTime = msgDto.SentAt,
-                            UnreadCount = msgDto.UserId != _userSession.UserId ? 1 : 0,
-                            IsGroup = false,
-                            CreatedAt = DateTime.Now
-                        };
-                        
-                        ChatList.Insert(0, newChat);
+                        // Если чат не найден в списках, загружаем список чатов для обновления
+                        // Это происходит когда приходит сообщение из чата, которого еще нет в списке
+                        _ = LoadChatsAsync();
                     }
                 }
                 catch { }
@@ -899,19 +1226,29 @@ namespace uchat
         {
             try
             {
-                var existingChat = ChatList.FirstOrDefault(c => c.Id == chatData.RoomId);
+                // КРИТИЧНО: Этот метод должен использоваться ТОЛЬКО для приватных чатов
+                // Проверяем, что это не группа
+                var existingGroup = GroupChats.FirstOrDefault(c => c.Id == chatData.RoomId);
+                if (existingGroup != null)
+                {
+                    // Это группа, не добавляем в ChatList
+                    return;
+                }
+                
+                var existingChat = ChatList.FirstOrDefault(c => c.Id == chatData.RoomId && !c.IsGroup);
                 if (existingChat == null)
                 {
                     var profile = await LoadUserProfileForChatAsync(chatData.OtherUserId);
                     
-                    ChatList.Add(new ChatInfoDto
+                    // КРИТИЧНО: Добавляем только в ChatList, только если это не группа
+                    var newChat = new ChatInfoDto
                     {
                         Id = chatData.RoomId,
                         OtherUserId = chatData.OtherUserId,
                         OtherUsername = chatData.TargetUser,
                         Name = $"Private_{_currentRoomId}_{chatData.OtherUserId}",
                         DisplayName = chatData.TargetUser,
-                        IsGroup = false,
+                        IsGroup = false, // Явно устанавливаем IsGroup = false
                         Description = chatData.History?.LastOrDefault()?.Content ?? "No messages",
                         CreatedAt = DateTime.Now,
                         UnreadCount = 0,
@@ -920,7 +1257,15 @@ namespace uchat
                             .FirstOrDefault()?.Content ?? "No messages",
                         LastMessageTime = chatData.History?.LastOrDefault()?.SentAt ?? DateTime.Now,
                         Avatar = profile?.Avatar
-                    });
+                    };
+                    
+                    // Дополнительная проверка перед добавлением
+                    if (!newChat.IsGroup && !ChatList.Any(c => c.Id == newChat.Id))
+                    {
+                        ChatList.Add(newChat);
+                        // Гарантируем правильный ItemsSource
+                        EnsureCorrectItemsSource();
+                    }
                 }
                 else
                 {
@@ -958,6 +1303,9 @@ namespace uchat
                             ChatList.RemoveAt(index);
                             ChatList.Insert(index, existingChat);
                         }
+                        
+                        // Гарантируем правильный ItemsSource
+                        EnsureCorrectItemsSource();
                     }
                     
                     if (existingChat.Avatar == null && chatData.OtherUserId > 0)
@@ -1102,6 +1450,9 @@ namespace uchat
             return localPath;
         }
 
+        private bool _historyLoaded = false; // Track if history has been loaded for current chat
+        private int _lastLoadedRoomId = 0; // Track which room's history was loaded
+
         private void OnConnectionLost()
         {
             if (_network != null && _network.IsConnected)
@@ -1109,19 +1460,52 @@ namespace uchat
                 return;
             }
 
-            if (Dispatcher.CheckAccess())
+            // Show notification about connection loss
+            // Auto-reconnection will be handled by NetworkClient
+            Dispatcher.InvokeAsync(() =>
             {
-                MessageBox.Show("Connection to server lost.", "Connection Error", 
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-            else
+                // Show a simple message box notification
+                // In a production app, you might want to use a status bar or toast notification instead
+                MessageBox.Show(
+                    "Connection to server lost.\nAttempting to reconnect automatically...",
+                    "Connection Lost",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            });
+        }
+
+        private void OnReconnecting()
+        {
+            Dispatcher.InvokeAsync(() =>
             {
-                Dispatcher.InvokeAsync(() =>
+                // Show reconnecting status
+                // In a production app, you might want to use a status bar instead
+                // For now, we'll just log it - the user was already notified about connection loss
+            });
+        }
+
+        private async void OnReconnected()
+        {
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                // Show reconnected notification
+                MessageBox.Show(
+                    "Connection to server restored successfully.",
+                    "Reconnected",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                // Rejoin current chat room if one was open, but DO NOT reload history
+                if (_currentRoomId > 0 && _network != null && _network.IsConnected)
                 {
-                    MessageBox.Show("Connection to server lost.", "Connection Error", 
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                });
-            }
+                    // Rejoin the room without loading history
+                    await _network.SendMessageAsync($"/join {_currentRoomId}");
+                    
+                    // Mark that history is already loaded to prevent reloading
+                    _historyLoaded = true;
+                    _lastLoadedRoomId = _currentRoomId;
+                }
+            });
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)
@@ -1170,7 +1554,7 @@ namespace uchat
             if (MessageInput != null && MessageInput.Text == "Send a message...")
             {
                 MessageInput.Text = "";
-                MessageInput.Foreground = new SolidColorBrush(Colors.Black);
+                MessageInput.SetResourceReference(Control.ForegroundProperty, "ForegroundPrimaryBrush");
             }
         }
 
@@ -1190,7 +1574,7 @@ namespace uchat
                 if (MessageInput.Text != "Send a message...")
                 {
                     MessageInput.Text = MessageInput.Text.Replace("Send a message...", "");
-                    MessageInput.Foreground = new SolidColorBrush(Colors.Black);
+                    MessageInput.SetResourceReference(Control.ForegroundProperty, "ForegroundPrimaryBrush");
                 }
             }
         }
@@ -1235,17 +1619,56 @@ namespace uchat
                 
                 _ = Dispatcher.InvokeAsync(() =>
                 {
-                    var chat = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
-                    if (chat != null)
+                    // Проверяем оба списка для текущего чата
+                    var groupChat = GroupChats.FirstOrDefault(c => c.Id == _currentRoomId);
+                    var privateChat = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
+                    
+                    // КРИТИЧНО: обновляем только ту коллекцию, к которой относится чат
+                    if (groupChat != null)
                     {
-                        chat.LastMessage = messageText;
-                        chat.LastMessageTime = DateTime.Now;
+                        // Это группа - обновляем только GroupChats
+                        groupChat.LastMessage = messageText;
+                        groupChat.LastMessageTime = DateTime.Now;
                         
-                        var index = ChatList.IndexOf(chat);
+                        var index = GroupChats.IndexOf(groupChat);
+                        if (index > 0)
+                        {
+                            GroupChats.Move(index, 0);
+                        }
+                        else if (index == 0)
+                        {
+                            // Принудительно обновляем отображение
+                            var savedUnreadCount = groupChat.UnreadCount;
+                            GroupChats.RemoveAt(0);
+                            GroupChats.Insert(0, groupChat);
+                            groupChat.UnreadCount = savedUnreadCount;
+                        }
+                        
+                        // Убеждаемся, что ItemsSource не переключился на неправильную коллекцию
+                        EnsureCorrectItemsSource();
+                    }
+                    else if (privateChat != null)
+                    {
+                        // Это приватный чат - обновляем только ChatList
+                        privateChat.LastMessage = messageText;
+                        privateChat.LastMessageTime = DateTime.Now;
+                        
+                        var index = ChatList.IndexOf(privateChat);
                         if (index > 0)
                         {
                             ChatList.Move(index, 0);
                         }
+                        else if (index == 0)
+                        {
+                            // Принудительно обновляем отображение
+                            var savedUnreadCount = privateChat.UnreadCount;
+                            ChatList.RemoveAt(0);
+                            ChatList.Insert(0, privateChat);
+                            privateChat.UnreadCount = savedUnreadCount;
+                        }
+                        
+                        // Убеждаемся, что ItemsSource не переключился на неправильную коллекцию
+                        EnsureCorrectItemsSource();
                     }
                 });
                 
@@ -1473,6 +1896,52 @@ namespace uchat
             MessagesView.Visibility = Visibility.Visible;
             SettingsView.Visibility = Visibility.Collapsed;
             ProfileView.Visibility = Visibility.Collapsed;
+            ChatsPage.Visibility = Visibility.Visible;
+            
+            // КРИТИЧНО: Переключаем на приватные чаты - только приватные чаты в этой вкладке
+            // Принудительно устанавливаем ChatList и проверяем, что в нем нет групп
+            if (ChatsList != null)
+            {
+                // Удаляем любые группы, которые могли попасть в ChatList (защита от ошибок)
+                var groupsInChatList = ChatList.Where(c => c.IsGroup).ToList();
+                foreach (var group in groupsInChatList)
+                {
+                    ChatList.Remove(group);
+                    // Если группа не в GroupChats, добавляем её туда
+                    if (!GroupChats.Any(g => g.Id == group.Id))
+                    {
+                        GroupChats.Add(group);
+                    }
+                }
+                
+                // Принудительно устанавливаем ChatList как ItemsSource
+                ChatsList.ItemsSource = ChatList;
+                ChatsList.SelectedItem = null; // Сбрасываем выбор при переключении вкладки
+            }
+            
+            // Показываем кнопку для приватных чатов, скрываем для групп
+            if (NewChatButton != null)
+            {
+                NewChatButton.Visibility = Visibility.Visible;
+            }
+            if (CreateGroupButton != null)
+            {
+                CreateGroupButton.Visibility = Visibility.Collapsed;
+            }
+            if (ChatsHeaderText != null)
+            {
+                ChatsHeaderText.Text = "Chats";
+            }
+            
+            // Скрываем панели создания
+            if (AddChatPanel != null)
+            {
+                AddChatPanel.Visibility = Visibility.Collapsed;
+            }
+            if (CreateGroupPanel != null)
+            {
+                CreateGroupPanel.Visibility = Visibility.Collapsed;
+            }
             
             _currentRoomId = 0;
             
@@ -1484,6 +1953,7 @@ namespace uchat
             ChatHeaderPanel.Visibility = Visibility.Collapsed;
             MessageInputPanel.Visibility = Visibility.Collapsed;
             UserProfilePanel.Visibility = Visibility.Collapsed;
+            GroupInfoPanel.Visibility = Visibility.Collapsed;
             RightPanelColumn.Width = new GridLength(0);
             MainContentGrid.Margin = new Thickness(6, 12, 0, 12);
             ChatHeaderName.Text = "Select a chat";
@@ -1494,6 +1964,9 @@ namespace uchat
             if (ProfileInfo != null) ProfileInfo.Text = "";
             if (ProfileAvatar != null) ProfileAvatar.Fill = new SolidColorBrush(Colors.Gray);
             if (ChatHeaderAvatar != null) ChatHeaderAvatar.Fill = new SolidColorBrush(Colors.Gray);
+            
+            // Обновляем отображение списка
+            UpdateChatsListDisplay();
         }
 
         private void ShowProfilePage()
@@ -1501,11 +1974,68 @@ namespace uchat
             MessagesView.Visibility = Visibility.Collapsed;
             SettingsView.Visibility = Visibility.Collapsed;
             ProfileView.Visibility = Visibility.Visible;
+            ChatsPage.Visibility = Visibility.Visible;
+            
+            // КРИТИЧНО: Переключаем на групповые чаты - только групповые чаты в этой вкладке
+            // Принудительно устанавливаем GroupChats и проверяем, что в нем нет приватных чатов
+            if (ChatsList != null)
+            {
+                // Удаляем любые приватные чаты, которые могли попасть в GroupChats (защита от ошибок)
+                var privateChatsInGroups = GroupChats.Where(c => !c.IsGroup).ToList();
+                foreach (var privateChat in privateChatsInGroups)
+                {
+                    GroupChats.Remove(privateChat);
+                    // Если приватный чат не в ChatList, добавляем его туда
+                    if (!ChatList.Any(c => c.Id == privateChat.Id))
+                    {
+                        ChatList.Add(privateChat);
+                    }
+                }
+                
+                // Принудительно устанавливаем GroupChats как ItemsSource
+                ChatsList.ItemsSource = GroupChats;
+                ChatsList.SelectedItem = null; // Сбрасываем выбор при переключении вкладки
+            }
+            
+            // Показываем кнопку для групп, скрываем для приватных чатов
+            if (NewChatButton != null)
+            {
+                NewChatButton.Visibility = Visibility.Collapsed;
+            }
+            if (CreateGroupButton != null)
+            {
+                CreateGroupButton.Visibility = Visibility.Visible;
+            }
+            if (ChatsHeaderText != null)
+            {
+                ChatsHeaderText.Text = "Group Chats";
+            }
+            
+            // Скрываем панели создания
+            if (AddChatPanel != null)
+            {
+                AddChatPanel.Visibility = Visibility.Collapsed;
+            }
+            if (CreateGroupPanel != null)
+            {
+                CreateGroupPanel.Visibility = Visibility.Collapsed;
+            }
+            
             ChatHeaderPanel.Visibility = Visibility.Collapsed;
             MessageInputPanel.Visibility = Visibility.Collapsed;
             UserProfilePanel.Visibility = Visibility.Collapsed;
+            GroupInfoPanel.Visibility = Visibility.Collapsed;
             RightPanelColumn.Width = new GridLength(0);
             MainContentGrid.Margin = new Thickness(6, 12, 12, 12);
+            _currentRoomId = 0;
+            
+            // Обновляем отображение списка
+            UpdateChatsListDisplay();
+        }
+
+        private void ShowGroupsPage()
+        {
+            ShowProfilePage();
         }
 
         private void ShowSettingsPage()
@@ -1549,13 +2079,25 @@ namespace uchat
 
         private void FilterChats(string searchText)
         {
+            // Определяем, какая коллекция активна (приватные чаты или группы)
+            var isGroupsMode = CreateGroupButton != null && CreateGroupButton.Visibility == Visibility.Visible;
+            var sourceCollection = isGroupsMode ? GroupChats : ChatList;
+            
+            // КРИТИЧНО: Гарантируем правильный ItemsSource перед фильтрацией
+            EnsureCorrectItemsSource();
+            
             if (string.IsNullOrWhiteSpace(searchText) || searchText == "Search")
             {
-                ChatsList.ItemsSource = ChatList;
+                // Убеждаемся, что ItemsSource установлен на правильную коллекцию
+                if (ChatsList.ItemsSource != sourceCollection)
+                {
+                    ChatsList.ItemsSource = sourceCollection;
+                }
                 return;
             }
 
-            var filtered = ChatList.Where(chat =>
+            // Фильтруем только правильную коллекцию
+            var filtered = sourceCollection.Where(chat =>
                 chat.DisplayName.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
                 chat.LastMessage?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true
             ).ToList();
@@ -1841,7 +2383,8 @@ namespace uchat
             {
                 _ = Dispatcher.InvokeAsync(() =>
                 {
-                    var chat = ChatList.FirstOrDefault(c => c.OtherUserId == userId);
+                    // КРИТИЧНО: Обновляем только приватные чаты, не группы
+                    var chat = ChatList.FirstOrDefault(c => c.OtherUserId == userId && !c.IsGroup);
                     if (chat != null && avatarData != null)
                     {
                         // Сохраняем UnreadCount перед обновлением
@@ -1859,6 +2402,9 @@ namespace uchat
                             ChatList.RemoveAt(index);
                             ChatList.Insert(index, chat);
                         }
+                        
+                        // Гарантируем правильный ItemsSource
+                        EnsureCorrectItemsSource();
                     }
                 });
             }
@@ -1918,15 +2464,6 @@ namespace uchat
             }
         }
 
-        private void SearchHeaderButton_Click(object sender, RoutedEventArgs e)
-        {
-        }
-
-        private void CallHeaderButton_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("This feature will be added in the next update.", "Coming Soon", 
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
 
         private void EmojiButton_Click(object sender, RoutedEventArgs e)
         {
@@ -1996,7 +2533,7 @@ namespace uchat
                 if (MessageInput.Text == "Send a message...")
                 {
                     MessageInput.Text = "";
-                    MessageInput.Foreground = new SolidColorBrush(Colors.Black);
+                    MessageInput.SetResourceReference(Control.ForegroundProperty, "ForegroundPrimaryBrush");
                 }
 
                 int caretIndex = MessageInput.CaretIndex;
@@ -2044,6 +2581,55 @@ namespace uchat
             }
         }
 
+        private async void ProcessNewChatNotification(MessageDto msgDto)
+        {
+            try
+            {
+                // Обновляем список чатов при получении уведомления о новом чате
+                await LoadChatsAsync();
+            }
+            catch { }
+        }
+
+        private async void ProcessNewPrivateChatNotification(JsonElement chatData)
+        {
+            try
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+
+                // Извлекаем RoomId и OtherUser из данных
+                int? roomId = null;
+                string? otherUser = null;
+
+                if (chatData.TryGetProperty("RoomId", out var roomIdElement))
+                {
+                    roomId = roomIdElement.GetInt32();
+                }
+
+                if (chatData.TryGetProperty("OtherUser", out var otherUserElement))
+                {
+                    otherUser = otherUserElement.GetString();
+                }
+
+                // Обновляем список чатов при получении уведомления о новом приватном чате
+                await LoadChatsAsync();
+            }
+            catch { }
+        }
+
+        private async void ProcessAddedToGroupNotification(JsonElement groupData)
+        {
+            try
+            {
+                // Обновляем список чатов при получении уведомления о добавлении в группу
+                await LoadChatsAsync();
+            }
+            catch { }
+        }
+
         private async void DeleteChatButton_Click(object sender, RoutedEventArgs e)
         {
             if (_currentRoomId == 0)
@@ -2071,14 +2657,21 @@ namespace uchat
                     var response = await _network.DeleteChatAsync(_currentRoomId);
                     if (response?.Success == true)
                     {
-                        var chatToRemove = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
-                        if (chatToRemove != null)
+                        // Удаляем из соответствующего списка
+                        var groupChatToRemove = GroupChats.FirstOrDefault(c => c.Id == _currentRoomId);
+                        var privateChatToRemove = ChatList.FirstOrDefault(c => c.Id == _currentRoomId);
+                        
+                        if (groupChatToRemove != null)
                         {
-                            ChatList.Remove(chatToRemove);
+                            GroupChats.Remove(groupChatToRemove);
+                            ShowGroupsPage();
+                        }
+                        else if (privateChatToRemove != null)
+                        {
+                            ChatList.Remove(privateChatToRemove);
+                            ShowChatsPage();
                         }
 
-                        ShowChatsPage();
-                        
                         await LoadChatsAsync();
                         
                         MessageBox.Show("Chat deleted successfully", "Success", 
@@ -2746,6 +3339,750 @@ namespace uchat
             else
             {
                 _ = Dispatcher.InvokeAsync(RefreshMessagesView);
+            }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
+        }
+
+        // Методы для работы с группами
+        private void CreateGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (CreateGroupPanel != null)
+            {
+                CreateGroupPanel.Visibility = CreateGroupPanel.Visibility == Visibility.Visible 
+                    ? Visibility.Collapsed 
+                    : Visibility.Visible;
+                if (CreateGroupPanel.Visibility == Visibility.Visible)
+                {
+                    if (NewGroupName != null) NewGroupName.Focus();
+                }
+            }
+        }
+
+        private async void CreateGroupConfirmButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_network == null || !_network.IsConnected)
+            {
+                MessageBox.Show("No connection to server");
+                return;
+            }
+
+            string groupName = NewGroupName?.Text?.Trim() ?? "";
+            string description = NewGroupDescription?.Text?.Trim() ?? "";
+
+            if (string.IsNullOrWhiteSpace(groupName))
+            {
+                MessageBox.Show("Please enter group name");
+                return;
+            }
+
+            try
+            {
+                await _network.SendMessageAsync($"/creategroup {groupName} {description}");
+                if (NewGroupName != null) NewGroupName.Clear();
+                if (NewGroupDescription != null) NewGroupDescription.Clear();
+                if (CreateGroupPanel != null) CreateGroupPanel.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error creating group: {ex.Message}");
+            }
+        }
+
+        private async Task OpenGroupChatAsync(int roomId)
+        {
+            await Task.Yield();
+            try
+            {
+                if (_isOpeningChat)
+                {
+                    return;
+                }
+
+                if (_network == null || !_network.IsConnected)
+                {
+                    MessageBox.Show("No connection to server");
+                    return;
+                }
+
+                // If switching to a different chat, reset history loaded flag
+                if (_currentRoomId != roomId)
+                {
+                    _historyLoaded = false;
+                    _lastLoadedRoomId = 0;
+                }
+                else if (_currentRoomId == roomId && _historyLoaded)
+                {
+                    // Same chat, history already loaded - don't reload
+                    return;
+                }
+
+                _isOpeningChat = true;
+                _openingChatCts?.Cancel();
+                _openingChatCts = new CancellationTokenSource();
+                var cts = _openingChatCts;
+
+                try
+                {
+                    // OpenGroupChatAsync используется только для групповых чатов
+                    var chat = GroupChats.FirstOrDefault(c => c.Id == roomId);
+                    if (chat == null)
+                    {
+                        _isOpeningChat = false;
+                        _openingChatCts?.Cancel();
+                        return;
+                    }
+                    {
+                        chat.UnreadCount = 0;
+                        
+                        _currentRoomId = roomId;
+                        
+                        // Only clear messages if history wasn't loaded yet
+                        if (!_historyLoaded || _lastLoadedRoomId != roomId)
+                        {
+                            ChatMessages.Clear();
+                        }
+                        
+                        Title = $"Uchat - {chat.DisplayName ?? "Group"}";
+                        if (ChatHeaderName != null)
+                        {
+                            ChatHeaderName.Text = chat.DisplayName ?? "Group";
+                        }
+                        
+                        // Скрываем аватар в верхней панели для групповых чатов
+                        if (ChatHeaderAvatar != null)
+                        {
+                            ChatHeaderAvatar.Visibility = Visibility.Collapsed;
+                        }
+                        
+                        // Switch to MessagesView when opening group chat
+                        MessagesView.Visibility = Visibility.Visible;
+                        ProfileView.Visibility = Visibility.Collapsed;
+                        SettingsView.Visibility = Visibility.Collapsed;
+                        
+                        ChatHeaderPanel.Visibility = Visibility.Visible;
+                        MessageInputPanel.Visibility = Visibility.Visible;
+                        GroupInfoPanel.Visibility = Visibility.Visible;
+                        UserProfilePanel.Visibility = Visibility.Collapsed;
+                        RightPanelColumn.Width = new GridLength(320);
+                        MainContentGrid.Margin = new Thickness(6, 12, 0, 12);
+                        MessageInput.Focus();
+
+                        // Load group info (это обновит аватар во всех местах)
+                        await LoadGroupInfoAsync(roomId);
+                    }
+
+                    _ = _network.SendMessageAsync($"/join {roomId}").ContinueWith(task =>
+                    {
+                        if (!task.Result)
+                        {
+                            _isOpeningChat = false;
+                            _openingChatCts?.Cancel();
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error opening group chat: {ex.Message}");
+                    _isOpeningChat = false;
+                    _openingChatCts?.Cancel();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening group chat: {ex.Message}");
+                _isOpeningChat = false;
+                _openingChatCts?.Cancel();
+            }
+        }
+
+        private Task LoadGroupInfoAsync(int roomId)
+        {
+            try
+            {
+                if (_network == null || !_network.IsConnected)
+                {
+                    return Task.CompletedTask;
+                }
+
+                // Запрашиваем информацию о группе
+                return _network.SendMessageAsync($"/groupinfo {roomId}");
+            }
+            catch
+            {
+                return Task.CompletedTask;
+            }
+        }
+
+        private void ProcessGroupCreated(JsonElement groupData)
+        {
+            try
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                };
+                var groupDto = JsonSerializer.Deserialize<ChatInfoDto>(groupData.GetRawText(), options);
+                if (groupDto != null && groupDto.IsGroup)
+                {
+                    _ = Dispatcher.InvokeAsync(async () =>
+                    {
+                        // Добавляем группу только в GroupChats, не в ChatList
+                        GroupChats.Insert(0, groupDto);
+                        
+                        // КРИТИЧНО: гарантируем правильный ItemsSource перед обновлением
+                        EnsureCorrectItemsSource();
+                        UpdateChatsListDisplay();
+                        
+                        // Автоматически открываем созданную группу
+                        await OpenGroupChatAsync(groupDto.Id);
+                    });
+                }
+            }
+            catch { }
+        }
+
+        private void ProcessGroupInfo(JsonElement groupInfoData)
+        {
+            try
+            {
+                if (groupInfoData.ValueKind != JsonValueKind.Object)
+                    return;
+
+                _ = Dispatcher.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        // Обновляем информацию о группе
+                        string? groupName = null;
+                        if (groupInfoData.TryGetProperty("Name", out var nameElement))
+                        {
+                            groupName = nameElement.GetString() ?? "";
+                            if (GroupName != null)
+                            {
+                                GroupName.Text = groupName;
+                            }
+                        }
+
+                        if (groupInfoData.TryGetProperty("Description", out var descElement))
+                        {
+                            if (GroupDescription != null)
+                            {
+                                GroupDescription.Text = descElement.GetString() ?? "";
+                            }
+                        }
+
+                        // Обновляем аватар группы
+                        byte[]? avatarBytes = null;
+                        if (groupInfoData.TryGetProperty("Avatar", out var avatarElement) && avatarElement.ValueKind == JsonValueKind.Array)
+                        {
+                            try
+                            {
+                                avatarBytes = avatarElement.EnumerateArray().Select(e => (byte)e.GetInt32()).ToArray();
+                                GroupAvatarData = avatarBytes.Length > 0 ? avatarBytes : null;
+                                
+                                // Обновляем аватар в списке групповых чатов (левая панель)
+                                if (groupInfoData.TryGetProperty("Id", out var idElement))
+                                {
+                                    var groupId = idElement.GetInt32();
+                                    var chat = GroupChats.FirstOrDefault(c => c.Id == groupId);
+                                    if (chat != null)
+                                    {
+                                        chat.Avatar = avatarBytes.Length > 0 ? avatarBytes : null;
+                                        var savedUnreadCount = chat.UnreadCount;
+                                        var index = GroupChats.IndexOf(chat);
+                                        if (index >= 0)
+                                        {
+                                            GroupChats.RemoveAt(index);
+                                            GroupChats.Insert(index, chat);
+                                            chat.UnreadCount = savedUnreadCount;
+                                        }
+                                        UpdateChatsListDisplay();
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                        else
+                        {
+                            GroupAvatarData = null;
+                            
+                            // Обновляем аватар в списке групповых чатов (левая панель)
+                            if (groupInfoData.TryGetProperty("Id", out var idElement))
+                            {
+                                var groupId = idElement.GetInt32();
+                                var chat = GroupChats.FirstOrDefault(c => c.Id == groupId);
+                                if (chat != null)
+                                {
+                                    chat.Avatar = null;
+                                    var savedUnreadCount = chat.UnreadCount;
+                                    var index = GroupChats.IndexOf(chat);
+                                    if (index >= 0)
+                                    {
+                                        GroupChats.RemoveAt(index);
+                                        GroupChats.Insert(index, chat);
+                                        chat.UnreadCount = savedUnreadCount;
+                                    }
+                                    UpdateChatsListDisplay();
+                                }
+                            }
+                        }
+
+                        // Обновляем имя группы в верхней панели
+                        if (!string.IsNullOrEmpty(groupName) && ChatHeaderName != null)
+                        {
+                            ChatHeaderName.Text = groupName;
+                        }
+
+                        // Обновляем список участников
+                        if (groupInfoData.TryGetProperty("Members", out var membersElement))
+                        {
+                            try
+                            {
+                                var membersList = new List<GroupMemberInfo>();
+                                foreach (var member in membersElement.EnumerateArray())
+                                {
+                                    byte[]? memberAvatar = null;
+                                    if (member.TryGetProperty("Avatar", out var av) && av.ValueKind == JsonValueKind.Array)
+                                    {
+                                        try
+                                        {
+                                            memberAvatar = av.EnumerateArray().Select(e => (byte)e.GetInt32()).ToArray();
+                                        }
+                                        catch { }
+                                    }
+                                    
+                                    var memberObj = new GroupMemberInfo
+                                    {
+                                        Id = member.TryGetProperty("Id", out var id) ? id.GetInt32() : 0,
+                                        Username = member.TryGetProperty("Username", out var un) ? un.GetString() ?? "" : "",
+                                        DisplayName = member.TryGetProperty("DisplayName", out var dn) ? dn.GetString() ?? "" : "",
+                                        Avatar = memberAvatar
+                                    };
+                                    membersList.Add(memberObj);
+                                }
+                                
+                                GroupMembers.Clear();
+                                foreach (var member in membersList)
+                                {
+                                    GroupMembers.Add(member);
+                                }
+                                
+                                // Устанавливаем ItemsSource для GroupMembersList
+                                if (GroupMembersList != null)
+                                {
+                                    GroupMembersList.ItemsSource = GroupMembers;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    catch { }
+                });
+            }
+            catch { }
+        }
+
+        private void ProcessGroupUpdate(JsonElement groupData)
+        {
+            try
+            {
+                if (groupData.ValueKind != JsonValueKind.Object)
+                    return;
+
+                _ = Dispatcher.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        int? groupId = null;
+                        if (groupData.TryGetProperty("Id", out var idElement))
+                        {
+                            groupId = idElement.GetInt32();
+                        }
+
+                        // Обновляем информацию о группе в правой панели, если это текущая группа
+                        if (groupId.HasValue && groupId.Value == _currentRoomId)
+                        {
+                            ProcessGroupInfo(groupData);
+                        }
+
+                        // Обновляем информацию о группе в списке групповых чатов
+                        if (groupId.HasValue)
+                        {
+                            var chat = GroupChats.FirstOrDefault(c => c.Id == groupId.Value);
+                            if (chat != null)
+                            {
+                                string? newName = null;
+                                if (groupData.TryGetProperty("Name", out var nameElement))
+                                {
+                                    newName = nameElement.GetString() ?? chat.Name;
+                                    chat.Name = newName;
+                                    chat.DisplayName = newName;
+                                }
+
+                                byte[]? newAvatar = null;
+                                if (groupData.TryGetProperty("Avatar", out var avatarElement) && avatarElement.ValueKind == JsonValueKind.Array)
+                                {
+                                    try
+                                    {
+                                        newAvatar = avatarElement.EnumerateArray().Select(e => (byte)e.GetInt32()).ToArray();
+                                        if (newAvatar.Length > 0)
+                                        {
+                                            chat.Avatar = newAvatar;
+                                        }
+                                        else
+                                        {
+                                            chat.Avatar = null;
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                else if (groupData.TryGetProperty("Avatar", out var avatarNullElement) && avatarNullElement.ValueKind == JsonValueKind.Null)
+                                {
+                                    chat.Avatar = null;
+                                }
+
+                                // Обновляем верхнюю панель (заголовок чата) и правую панель, если это текущая открытая группа
+                                if (groupId.Value == _currentRoomId)
+                                {
+                                    if (!string.IsNullOrEmpty(newName) && ChatHeaderName != null)
+                                    {
+                                        ChatHeaderName.Text = newName;
+                                    }
+                                    
+                                    // Обновляем аватар в правой панели информации о группе
+                                    GroupAvatarData = newAvatar;
+                                }
+
+                                // Принудительно обновляем отображение
+                                var index = GroupChats.IndexOf(chat);
+                                if (index >= 0)
+                                {
+                                    var savedUnreadCount = chat.UnreadCount;
+                                    GroupChats.RemoveAt(index);
+                                    GroupChats.Insert(index, chat);
+                                    chat.UnreadCount = savedUnreadCount;
+                                }
+                                
+                                // Обновляем отображение списка чатов
+                                UpdateChatsListDisplay();
+                            }
+                        }
+                    }
+                    catch { }
+                });
+            }
+            catch { }
+        }
+
+
+        private async void AddMemberButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentRoomId == 0)
+            {
+                MessageBox.Show("No group selected", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                if (_network == null || !_network.IsConnected)
+                {
+                    MessageBox.Show("No connection to server", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Показываем диалог для ввода username
+                string? enteredUsername = null;
+                bool dialogResult = false;
+
+                var dialog = new Window
+                {
+                    Title = "Add Member",
+                    Width = 400,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    Owner = this,
+                    ResizeMode = ResizeMode.NoResize
+                };
+
+                var stackPanel = new StackPanel { Margin = new Thickness(20) };
+                
+                var label = new TextBlock
+                {
+                    Text = "Enter username:",
+                    FontSize = 14,
+                    Margin = new Thickness(0, 0, 0, 10)
+                };
+                stackPanel.Children.Add(label);
+
+                var textBox = new TextBox
+                {
+                    FontSize = 14,
+                    Height = 30,
+                    Margin = new Thickness(0, 0, 0, 15)
+                };
+                
+                // Обработка Enter для добавления
+                textBox.KeyDown += (s, e) =>
+                {
+                    if (e.Key == Key.Enter)
+                    {
+                        enteredUsername = textBox.Text?.Trim();
+                        if (!string.IsNullOrWhiteSpace(enteredUsername))
+                        {
+                            dialogResult = true;
+                            dialog.Close();
+                        }
+                    }
+                };
+                
+                stackPanel.Children.Add(textBox);
+
+                var buttonPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right
+                };
+
+                var cancelButton = new Button
+                {
+                    Content = "Cancel",
+                    Width = 80,
+                    Height = 30,
+                    Margin = new Thickness(0, 0, 10, 0),
+                    IsCancel = true
+                };
+                cancelButton.Click += (s, args) => 
+                { 
+                    dialogResult = false; 
+                    dialog.Close(); 
+                };
+                buttonPanel.Children.Add(cancelButton);
+
+                var addButton = new Button
+                {
+                    Content = "Add",
+                    Width = 80,
+                    Height = 30,
+                    IsDefault = true
+                };
+                addButton.Click += (s, args) => 
+                { 
+                    enteredUsername = textBox.Text?.Trim();
+                    if (!string.IsNullOrWhiteSpace(enteredUsername))
+                    {
+                        dialogResult = true;
+                        dialog.Close();
+                    }
+                };
+                buttonPanel.Children.Add(addButton);
+
+                stackPanel.Children.Add(buttonPanel);
+                dialog.Content = stackPanel;
+
+                textBox.Focus();
+
+                dialog.ShowDialog();
+
+                if (dialogResult && !string.IsNullOrWhiteSpace(enteredUsername))
+                {
+                    var response = await _network.AddMemberToGroupAsync(_currentRoomId, enteredUsername);
+                    if (response?.Success == true)
+                    {
+                        MessageBox.Show("Member added successfully", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                        // Перезагружаем информацию о группе
+                        _ = LoadGroupInfoAsync(_currentRoomId);
+                    }
+                    else
+                    {
+                        MessageBox.Show(response?.Message ?? "Failed to add member", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error adding member: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void SaveGroupSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentRoomId == 0)
+            {
+                MessageBox.Show("No group selected", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (GroupName == null || GroupDescription == null)
+            {
+                return;
+            }
+
+            var newName = GroupName.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                MessageBox.Show("Group name cannot be empty", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var newDescription = GroupDescription.Text?.Trim() ?? "";
+
+            try
+            {
+                if (_network == null || !_network.IsConnected)
+                {
+                    MessageBox.Show("No connection to server", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var response = await _network.UpdateGroupAsync(_currentRoomId, name: newName, description: newDescription);
+                
+                if (response != null && response.Success)
+                {
+                    MessageBox.Show("Group settings saved successfully", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    
+                    // Обновляем название в списке групповых чатов
+                    var chat = GroupChats.FirstOrDefault(c => c.Id == _currentRoomId);
+                    if (chat != null)
+                    {
+                        chat.Name = newName;
+                        chat.DisplayName = newName;
+                        chat.Description = newDescription;
+                        
+                        var savedUnreadCount = chat.UnreadCount;
+                        var index = GroupChats.IndexOf(chat);
+                        if (index >= 0)
+                        {
+                            GroupChats.RemoveAt(index);
+                            GroupChats.Insert(index, chat);
+                            chat.UnreadCount = savedUnreadCount;
+                        }
+                        
+                        // Обновляем отображение списка чатов
+                        UpdateChatsListDisplay();
+                    }
+                }
+                else
+                {
+                    MessageBox.Show(response?.Message ?? "Failed to save group settings", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving group settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void LeaveGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentRoomId == 0)
+            {
+                MessageBox.Show("No group selected");
+                return;
+            }
+
+            var result = MessageBox.Show(
+                "Are you sure you want to leave this group?",
+                "Leave Group",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    if (_network == null || !_network.IsConnected)
+                    {
+                        MessageBox.Show("No connection to server");
+                        return;
+                    }
+
+                    // Отправляем команду для выхода из группы
+                    await _network.SendMessageAsync($"/leavegroup {_currentRoomId}");
+                    
+                    // Закрываем чат
+                    ShowGroupsPage();
+                    await LoadChatsAsync();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error leaving group: {ex.Message}", "Error",
+                                  MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Гарантирует, что ItemsSource установлен правильно в зависимости от активной вкладки.
+        /// КРИТИЧНО: предотвращает появление групп во вкладке direct_messages и наоборот.
+        /// </summary>
+        private void EnsureCorrectItemsSource()
+        {
+            if (ChatsList == null) return;
+            
+            // Определяем активную вкладку по видимости кнопки CreateGroupButton
+            var isGroupsMode = CreateGroupButton != null && CreateGroupButton.Visibility == Visibility.Visible;
+            var correctCollection = isGroupsMode ? GroupChats : ChatList;
+            
+            // КРИТИЧНО: Проверяем и очищаем коллекции от неправильных элементов
+            if (!isGroupsMode)
+            {
+                // Режим приватных чатов - удаляем группы из ChatList
+                var groupsInChatList = ChatList.Where(c => c.IsGroup).ToList();
+                foreach (var group in groupsInChatList)
+                {
+                    ChatList.Remove(group);
+                    // Если группа не в GroupChats, добавляем её туда
+                    if (!GroupChats.Any(g => g.Id == group.Id))
+                    {
+                        GroupChats.Add(group);
+                    }
+                }
+            }
+            else
+            {
+                // Режим групп - удаляем приватные чаты из GroupChats
+                var privateChatsInGroups = GroupChats.Where(c => !c.IsGroup).ToList();
+                foreach (var privateChat in privateChatsInGroups)
+                {
+                    GroupChats.Remove(privateChat);
+                    // Если приватный чат не в ChatList, добавляем его туда
+                    if (!ChatList.Any(c => c.Id == privateChat.Id))
+                    {
+                        ChatList.Add(privateChat);
+                    }
+                }
+            }
+            
+            // Принудительно устанавливаем правильную коллекцию
+            if (ChatsList.ItemsSource != correctCollection)
+            {
+                ChatsList.ItemsSource = correctCollection;
+            }
+        }
+
+        private void UpdateChatsListDisplay()
+        {
+            // Метод для обновления отображения списка чатов
+            // Сначала гарантируем правильный ItemsSource
+            EnsureCorrectItemsSource();
+            
+            // Определяем, какая коллекция активна (приватные чаты или группы)
+            var isGroupsMode = CreateGroupButton != null && CreateGroupButton.Visibility == Visibility.Visible;
+            var sourceCollection = isGroupsMode ? GroupChats : ChatList;
+            
+            if (ChatsList != null)
+            {
+                // Обновляем отображение активной коллекции
+                var collectionView = System.Windows.Data.CollectionViewSource.GetDefaultView(sourceCollection);
+                collectionView?.Refresh();
             }
         }
 

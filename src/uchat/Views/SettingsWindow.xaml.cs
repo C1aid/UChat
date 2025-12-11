@@ -36,21 +36,20 @@ namespace uchat.Views
         private void LoadUserData()
         {
             DisplayNameBox.Text = _userSession.DisplayName;
-            UsernameBox.Text = _userSession.Username;
             ProfileInfoBox.Text = _userSession.ProfileInfo;
 
             if (_userSession.Theme == "Latte")
                 LatteThemeRadio.IsChecked = true;
             else if (_userSession.Theme == "Matcha")
                 MatchaThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "OceanBreeze" || _userSession.Theme == "Lugia")
-                OceanBreezeThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "DeepSpace")
-                DeepSpaceThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "WarmGlow")
-                WarmGlowThemeRadio.IsChecked = true;
-            else if (_userSession.Theme == "NorthernCold")
-                NorthernColdThemeRadio.IsChecked = true;
+            else if (_userSession.Theme == "Acai" || _userSession.Theme == "Lugia")
+                AcaiThemeRadio.IsChecked = true;
+            else if (_userSession.Theme == "Earl Grey")
+                EarlGreyThemeRadio.IsChecked = true;
+            else if (_userSession.Theme == "Mulled Wine")
+                MulledWineThemeRadio.IsChecked = true;
+            else if (_userSession.Theme == "Anchan")
+                AnchanThemeRadio.IsChecked = true;
         }
 
 
@@ -85,16 +84,7 @@ namespace uchat.Views
 
             try
             {
-                var newUsername = UsernameBox.Text.Trim();
-                if (string.IsNullOrWhiteSpace(newUsername))
-                {
-                    MessageBox.Show("Username cannot be empty", "Error",
-                                  MessageBoxButton.OK, MessageBoxImage.Warning);
-                    SaveButton.Content = "Save changes";
-                    SaveButton.IsEnabled = true;
-                    return;
-                }
-
+                
                 var newDisplayName = DisplayNameBox.Text.Trim();
                 if (string.IsNullOrWhiteSpace(newDisplayName))
                 {
@@ -107,15 +97,15 @@ namespace uchat.Views
 
                 var updateRequest = new UpdateProfileRequest
                 {
-                    Username = newUsername,
+                    Username = _userSession.Username,
                     DisplayName = newDisplayName,
                     ProfileInfo = ProfileInfoBox.Text.Trim(),
                     Theme = LatteThemeRadio.IsChecked == true ? "Latte" 
                            : MatchaThemeRadio.IsChecked == true ? "Matcha"
-                           : OceanBreezeThemeRadio.IsChecked == true ? "OceanBreeze"
-                           : DeepSpaceThemeRadio.IsChecked == true ? "DeepSpace"
-                           : WarmGlowThemeRadio.IsChecked == true ? "WarmGlow"
-                           : "NorthernCold",
+                           : AcaiThemeRadio.IsChecked == true ? "Acai"
+                           : EarlGreyThemeRadio.IsChecked == true ? "Earl Grey"
+                           : MulledWineThemeRadio.IsChecked == true ? "Mulled Wine"
+                           : "Anchan",
                     Avatar = _newAvatar
                 };
 

@@ -396,5 +396,219 @@ namespace uchat_server.Services
                 FileSize = message.FileSize
             };
         }
+
+        // Методы для работы с группами
+        public async Task<ChatRoom> CreateGroupAsync(int creatorId, string groupName)
+        {
+            var creator = await _context.Users.FindAsync(creatorId);
+            if (creator == null)
+            {
+                throw new Exception("Creator user not found");
+            }
+
+            var group = new ChatRoom
+            {
+                Name = groupName,
+                IsGroup = true,
+                Description = null,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.ChatRooms.Add(group);
+            await _context.SaveChangesAsync();
+
+            // Добавляем создателя как участника и администратора
+            var member = new ChatRoomMember
+            {
+                ChatRoomId = group.Id,
+                UserId = creatorId,
+                IsAdmin = true
+            };
+
+            _context.ChatRoomMembers.Add(member);
+            await _context.SaveChangesAsync();
+
+            return group;
+        }
+
+        public async Task<bool> LeaveGroupAsync(int userId, int groupId)
+        {
+            var member = await _context.ChatRoomMembers
+                .FirstOrDefaultAsync(m => m.UserId == userId && m.ChatRoomId == groupId);
+
+            if (member == null)
+            {
+                return false;
+            }
+
+            var group = await _context.ChatRooms
+                .Include(c => c.Members)
+                .FirstOrDefaultAsync(c => c.Id == groupId);
+
+            if (group == null || !group.IsGroup)
+            {
+                return false;
+            }
+
+            _context.ChatRoomMembers.Remove(member);
+            await _context.SaveChangesAsync();
+
+            // Если группа пуста, удаляем её
+            var remainingMembers = await _context.ChatRoomMembers
+                .CountAsync(m => m.ChatRoomId == groupId);
+
+            if (remainingMembers == 0)
+            {
+                _context.ChatRooms.Remove(group);
+                await _context.SaveChangesAsync();
+            }
+
+            return true;
+        }
+
+        public async Task<ChatRoom?> GetGroupInfoAsync(int groupId)
+        {
+            return await _context.ChatRooms
+                .Include(c => c.Members)
+                    .ThenInclude(m => m.User)
+                .FirstOrDefaultAsync(c => c.Id == groupId && c.IsGroup);
+        }
+
+        public async Task<ApiResponse> AddMemberToGroupAsync(int groupId, int userId, string username)
+        {
+            try
+            {
+                var group = await _context.ChatRooms
+                    .Include(c => c.Members)
+                    .FirstOrDefaultAsync(c => c.Id == groupId && c.IsGroup);
+
+                if (group == null)
+                {
+                    return new ApiResponse { Success = false, Message = "Group not found." };
+                }
+
+                // Проверяем, что пользователь является участником группы
+                var isMember = group.Members.Any(m => m.UserId == userId);
+                if (!isMember)
+                {
+                    return new ApiResponse { Success = false, Message = "You are not a member of this group." };
+                }
+
+                // Находим пользователя по username
+                var userToAdd = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+                if (userToAdd == null)
+                {
+                    return new ApiResponse { Success = false, Message = "User not found." };
+                }
+
+                // Проверяем, не является ли пользователь уже участником
+                var alreadyMember = group.Members.Any(m => m.UserId == userToAdd.Id);
+                if (alreadyMember)
+                {
+                    return new ApiResponse { Success = false, Message = "User is already a member of this group." };
+                }
+
+                // Добавляем пользователя в группу
+                var newMember = new ChatRoomMember
+                {
+                    ChatRoomId = groupId,
+                    UserId = userToAdd.Id,
+                    IsAdmin = false
+                };
+
+                _context.ChatRoomMembers.Add(newMember);
+                await _context.SaveChangesAsync();
+
+                // Отправляем уведомление добавленному пользователю
+                if (_connectionManager.IsUserOnline(userToAdd.Id))
+                {
+                    var addedUserHandler = _connectionManager.GetUserConnection(userToAdd.Id);
+                    if (addedUserHandler != null)
+                    {
+                        var groupInfo = await GetGroupInfoAsync(groupId);
+                        if (groupInfo != null)
+                        {
+                            var members = groupInfo.Members.Select(m => new
+                            {
+                                Id = m.UserId,
+                                Username = m.User?.Username ?? "Unknown",
+                                DisplayName = m.User?.DisplayName ?? "",
+                                Avatar = m.User?.Avatar,
+                                IsAdmin = m.IsAdmin
+                            }).ToArray();
+
+                            var notificationData = new
+                            {
+                                Id = groupInfo.Id,
+                                Name = groupInfo.Name,
+                                Description = groupInfo.Description,
+                                Avatar = groupInfo.Avatar,
+                                CreatedAt = groupInfo.CreatedAt,
+                                Members = members
+                            };
+
+                            var notification = new ApiResponse
+                            {
+                                Success = true,
+                                Message = "You were added to a group",
+                                Data = notificationData
+                            };
+
+                            await addedUserHandler.SendResponseAsync(notification);
+                        }
+                    }
+                }
+
+                return new ApiResponse { Success = true, Message = "Member added successfully." };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding member to group");
+                return new ApiResponse { Success = false, Message = $"Error: {ex.Message}" };
+            }
+        }
+
+        public async Task<ChatRoom?> UpdateGroupAsync(int groupId, int userId, string? newName = null, string? newDescription = null)
+        {
+            try
+            {
+                var group = await _context.ChatRooms
+                    .Include(c => c.Members)
+                        .ThenInclude(m => m.User)
+                    .FirstOrDefaultAsync(c => c.Id == groupId && c.IsGroup);
+
+                if (group == null)
+                    return null;
+
+                // Проверяем, что пользователь является участником группы
+                var isMember = group.Members.Any(m => m.UserId == userId);
+                if (!isMember)
+                    return null;
+
+                // Обновляем поля, если они переданы
+                if (newName != null)
+                {
+                    group.Name = newName;
+                }
+
+                if (newDescription != null)
+                {
+                    group.Description = newDescription;
+                }
+
+                await _context.SaveChangesAsync();
+                
+                // Загружаем обновленную группу с навигационными свойствами
+                return await _context.ChatRooms
+                    .Include(c => c.Members)
+                        .ThenInclude(m => m.User)
+                    .FirstOrDefaultAsync(c => c.Id == groupId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating group {GroupId}", groupId);
+                return null;
+            }
+        }
     }
 }

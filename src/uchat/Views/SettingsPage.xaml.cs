@@ -35,7 +35,6 @@ namespace uchat.Views
         private void LoadUserData()
         {
             DisplayNameBox.Text = _userSession.DisplayName;
-            UsernameBox.Text = _userSession.Username;
             ProfileInfoBox.Text = _userSession.ProfileInfo;
 
             SetThemeSelection(_userSession.Theme);
@@ -72,15 +71,6 @@ namespace uchat.Views
 
             try
             {
-                var newUsername = UsernameBox.Text.Trim();
-                if (string.IsNullOrWhiteSpace(newUsername))
-                {
-                    MessageBox.Show("Username cannot be empty", "Error",
-                                  MessageBoxButton.OK, MessageBoxImage.Warning);
-                    SaveButton.Content = "Save changes";
-                    SaveButton.IsEnabled = true;
-                    return;
-                }
 
                 var newDisplayName = DisplayNameBox.Text.Trim();
                 if (string.IsNullOrWhiteSpace(newDisplayName))
@@ -96,7 +86,6 @@ namespace uchat.Views
 
                 var updateRequest = new UpdateProfileRequest
                 {
-                    Username = newUsername,
                     DisplayName = newDisplayName,
                     ProfileInfo = ProfileInfoBox.Text.Trim(),
                     Theme = selectedTheme,
@@ -356,12 +345,6 @@ namespace uchat.Views
         {
             DisplayNameBox.Focus();
             DisplayNameBox.SelectAll();
-        }
-
-        private void EditUsername_Click(object sender, RoutedEventArgs e)
-        {
-            UsernameBox.Focus();
-            UsernameBox.SelectAll();
         }
 
         private void EditProfileInfo_Click(object sender, RoutedEventArgs e)

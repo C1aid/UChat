@@ -85,7 +85,11 @@ namespace uchat
 
             try
             {
-                bool connected = await _networkClient.ConnectAsync("127.0.0.1", 8080);
+                // Use command line arguments for server connection
+                string serverIp = App.ServerIp;
+                int serverPort = App.ServerPort;
+
+                bool connected = await _networkClient.ConnectAsync(serverIp, serverPort, username, password);
                 if (!connected)
                 {
                     ShowError("Failed to connect to server");
@@ -93,6 +97,10 @@ namespace uchat
                     LoginButton.IsEnabled = true;
                     return;
                 }
+
+                // Save credentials for auto-reconnection
+                _networkClient.SaveCredentials(username, password);
+                _networkClient.EnableAutoReconnect(true);
 
                 await _networkClient.SendMessageAsync($"/login {username} {password}");
 

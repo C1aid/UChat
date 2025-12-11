@@ -32,12 +32,25 @@ namespace uchat.Services
             PropertyNameCaseInsensitive = true
         };
 
+        // Reconnection support
+        private string? _serverIp;
+        private int _serverPort;
+        private string? _savedUsername;
+        private string? _savedPassword;
+        private bool _isReconnecting = false;
+        private bool _autoReconnectEnabled = false;
+        private CancellationTokenSource? _reconnectCts;
+        private readonly object _reconnectLock = new object();
+
         public bool IsConnected => _client != null && _client.Connected;
+        public bool IsReconnecting => _isReconnecting;
 
         public event Action<string>? MessageReceived;
         public event Action? ConnectionLost;
+        public event Action? Reconnecting;
+        public event Action? Reconnected;
 
-        public async Task<bool> ConnectAsync(string ip, int port)
+        public async Task<bool> ConnectAsync(string ip, int port, string? username = null, string? password = null)
         {
             await _connectSemaphore.WaitAsync();
 
@@ -47,6 +60,14 @@ namespace uchat.Services
                 {
                     return true;
                 }
+
+                // Save connection info for reconnection
+                _serverIp = ip;
+                _serverPort = port;
+                if (!string.IsNullOrEmpty(username))
+                    _savedUsername = username;
+                if (!string.IsNullOrEmpty(password))
+                    _savedPassword = password;
 
                 _client = new TcpClient();
                 await _client.ConnectAsync(ip, port);
@@ -67,6 +88,17 @@ namespace uchat.Services
             {
                 _connectSemaphore.Release();
             }
+        }
+
+        public void EnableAutoReconnect(bool enable)
+        {
+            _autoReconnectEnabled = enable;
+        }
+
+        public void SaveCredentials(string username, string password)
+        {
+            _savedUsername = username;
+            _savedPassword = password;
         }
 
         public void StartBackgroundListening()
@@ -146,6 +178,29 @@ namespace uchat.Services
 
         private void OnConnectionLost()
         {
+            // Stop listening
+            _isListening = false;
+            _listeningCts?.Cancel();
+            _isBackgroundListeningStarted = false;
+
+            // Clean up connection
+            try
+            {
+                _writer?.Close();
+                _reader?.Close();
+                _client?.Close();
+                _writer?.Dispose();
+                _reader?.Dispose();
+                _client?.Dispose();
+            }
+            catch { }
+
+            _writer = null;
+            _reader = null;
+            _stream = null;
+            _client = null;
+
+            // Notify about connection loss
             if (Application.Current?.Dispatcher != null)
             {
                 _ = Application.Current.Dispatcher.InvokeAsync(() =>
@@ -156,6 +211,164 @@ namespace uchat.Services
             else
             {
                 ConnectionLost?.Invoke();
+            }
+
+            // Start reconnection if enabled
+            if (_autoReconnectEnabled && !string.IsNullOrEmpty(_serverIp) && _serverPort > 0)
+            {
+                _ = Task.Run(async () => await AttemptReconnectionAsync());
+            }
+        }
+
+        private async Task AttemptReconnectionAsync()
+        {
+            lock (_reconnectLock)
+            {
+                if (_isReconnecting)
+                    return;
+                _isReconnecting = true;
+            }
+
+            _reconnectCts = new CancellationTokenSource();
+
+            try
+            {
+                // Notify about reconnection attempt
+                if (Application.Current?.Dispatcher != null)
+                {
+                    _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        Reconnecting?.Invoke();
+                    });
+                }
+                else
+                {
+                    Reconnecting?.Invoke();
+                }
+
+                const int maxAttempts = 10;
+                const int delayBetweenAttempts = 3000; // 3 seconds
+                int attempt = 0;
+
+                while (attempt < maxAttempts && !_reconnectCts.Token.IsCancellationRequested)
+                {
+                    attempt++;
+
+                    // Try to reconnect
+                    bool connected = await ConnectAsync(_serverIp!, _serverPort);
+                    
+                    if (connected)
+                    {
+                        // Re-authenticate if credentials are saved
+                        if (!string.IsNullOrEmpty(_savedUsername) && !string.IsNullOrEmpty(_savedPassword))
+                        {
+                            await SendMessageAsync($"/login {_savedUsername} {_savedPassword}");
+                            
+                            // Wait for login response (skip welcome message)
+                            int responseCount = 0;
+                            while (responseCount < 5)
+                            {
+                                var response = await ReceiveMessageAsync(2000);
+                                if (string.IsNullOrEmpty(response))
+                                    break;
+
+                                try
+                                {
+                                    var apiResponse = JsonSerializer.Deserialize<ApiResponse>(response, _responseJsonOptions);
+                                    if (apiResponse != null && apiResponse.Message != "Welcome to Uchat! Use /help for commands")
+                                    {
+                                        if (apiResponse.Success)
+                                        {
+                                            // Login successful, restart listening
+                                            StartBackgroundListening();
+                                            
+                                            // Notify about successful reconnection
+                                            if (Application.Current?.Dispatcher != null)
+                                            {
+                                                _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                                                {
+                                                    Reconnected?.Invoke();
+                                                });
+                                            }
+                                            else
+                                            {
+                                                Reconnected?.Invoke();
+                                            }
+
+                                            lock (_reconnectLock)
+                                            {
+                                                _isReconnecting = false;
+                                            }
+                                            return;
+                                        }
+                                        else
+                                        {
+                                            // Login failed, break and retry
+                                            break;
+                                        }
+                                    }
+                                }
+                                catch { }
+
+                                responseCount++;
+                            }
+                        }
+                        else
+                        {
+                            // No credentials, just restart listening
+                            StartBackgroundListening();
+                            
+                            if (Application.Current?.Dispatcher != null)
+                            {
+                                _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                                {
+                                    Reconnected?.Invoke();
+                                });
+                            }
+                            else
+                            {
+                                Reconnected?.Invoke();
+                            }
+
+                            lock (_reconnectLock)
+                            {
+                                _isReconnecting = false;
+                            }
+                            return;
+                        }
+                    }
+
+                    // If we get here, connection failed or login failed
+                    // Wait before next attempt
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(delayBetweenAttempts, _reconnectCts.Token);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Reconnection was cancelled
+            }
+            catch
+            {
+                // Ignore errors during reconnection
+            }
+            finally
+            {
+                lock (_reconnectLock)
+                {
+                    _isReconnecting = false;
+                }
+            }
+        }
+
+        public void CancelReconnection()
+        {
+            _reconnectCts?.Cancel();
+            lock (_reconnectLock)
+            {
+                _isReconnecting = false;
             }
         }
 
@@ -537,6 +750,10 @@ namespace uchat.Services
         {
             try
             {
+                // Disable auto-reconnect when manually disconnecting
+                _autoReconnectEnabled = false;
+                CancelReconnection();
+
                 _isListening = false;
                 _listeningCts?.Cancel();
                 _isBackgroundListeningStarted = false;
@@ -1009,6 +1226,174 @@ namespace uchat.Services
                 fileName = fileName.Replace(ch, '_');
             }
             return fileName.Replace(' ', '_');
+        }
+
+        // Методы для работы с группами
+        public async Task<ApiResponse?> CreateGroupAsync(string groupName)
+        {
+            if (!IsConnected || _writer == null || _reader == null)
+            {
+                return null;
+            }
+
+            await _writeSemaphore.WaitAsync();
+            try
+            {
+                var command = $"/creategroup {groupName}";
+                await _writer.WriteLineAsync(command);
+
+                var response = await ReceiveMessageAsync(5000);
+                if (string.IsNullOrEmpty(response))
+                {
+                    return null;
+                }
+
+                return JsonSerializer.Deserialize<ApiResponse>(response);
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
+        }
+
+        public async Task<ApiResponse?> GetGroupInfoAsync(int groupId)
+        {
+            if (!IsConnected || _writer == null || _reader == null)
+            {
+                return null;
+            }
+
+            await _writeSemaphore.WaitAsync();
+            try
+            {
+                var command = $"/groupinfo {groupId}";
+                await _writer.WriteLineAsync(command);
+
+                var response = await ReceiveMessageAsync(5000);
+                if (string.IsNullOrEmpty(response))
+                {
+                    return null;
+                }
+
+                return JsonSerializer.Deserialize<ApiResponse>(response);
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
+        }
+
+        public async Task<ApiResponse?> LeaveGroupAsync(int groupId)
+        {
+            if (!IsConnected || _writer == null || _reader == null)
+            {
+                return null;
+            }
+
+            await _writeSemaphore.WaitAsync();
+            try
+            {
+                var command = $"/leavegroup {groupId}";
+                await _writer.WriteLineAsync(command);
+
+                var response = await ReceiveMessageAsync(5000);
+                if (string.IsNullOrEmpty(response))
+                {
+                    return null;
+                }
+
+                return JsonSerializer.Deserialize<ApiResponse>(response);
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
+        }
+
+        public async Task<ApiResponse?> UpdateGroupAsync(int groupId, string? name = null, string? description = null)
+        {
+            if (!IsConnected || _writer == null || _reader == null)
+            {
+                return null;
+            }
+
+            await _writeSemaphore.WaitAsync();
+            try
+            {
+                var parts = new List<string> { $"/updategroup {groupId}" };
+                
+                if (name != null)
+                {
+                    parts.Add($"name:{name}");
+                }
+                
+                if (description != null)
+                {
+                    parts.Add($"desc:{description}");
+                }
+
+                var command = string.Join(" ", parts);
+                await _writer.WriteLineAsync(command);
+
+                var response = await ReceiveMessageAsync(10000);
+                if (string.IsNullOrEmpty(response))
+                {
+                    return null;
+                }
+
+                return JsonSerializer.Deserialize<ApiResponse>(response);
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
+        }
+
+        public async Task<ApiResponse?> AddMemberToGroupAsync(int groupId, string username)
+        {
+            if (!IsConnected || _writer == null || _reader == null)
+            {
+                return null;
+            }
+
+            await _writeSemaphore.WaitAsync();
+            try
+            {
+                var command = $"/addmember {groupId} {username}";
+                await _writer.WriteLineAsync(command);
+
+                var response = await ReceiveMessageAsync(5000);
+                if (string.IsNullOrEmpty(response))
+                {
+                    return null;
+                }
+
+                return DeserializeApiResponse(response);
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
         }
     }
 }
