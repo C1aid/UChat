@@ -2222,23 +2222,37 @@ namespace uchat
                     }
                 }
 
-                var displayName = !string.IsNullOrWhiteSpace(profile.DisplayName) 
-                    ? profile.DisplayName 
-                    : profile.Username ?? "Unknown";
-                ProfileName.Text = displayName;
-                
-                var username = $"@{profile.Username ?? "unknown"}";
-                ProfileUsername.Text = username;
-                
-                var profileInfo = !string.IsNullOrWhiteSpace(profile.ProfileInfo) 
-                    ? profile.ProfileInfo 
-                    : "No profile info";
-                ProfileInfo.Text = profileInfo;
+                // Update display name only if provided (avoid clearing existing values on partial data)
+                if (!string.IsNullOrWhiteSpace(profile.DisplayName))
+                {
+                    ProfileName.Text = profile.DisplayName;
+                    ChatHeaderName.Text = profile.DisplayName;
+                }
+                else if (!string.IsNullOrWhiteSpace(profile.Username))
+                {
+                    var dn = profile.Username;
+                    ProfileName.Text = dn;
+                    ChatHeaderName.Text = dn;
+                }
 
-                UpdateAvatar(ProfileAvatar, profile.Avatar);
-                UpdateAvatar(ChatHeaderAvatar, profile.Avatar);
-                
-                ChatHeaderName.Text = displayName;
+                // Update username only when present
+                if (!string.IsNullOrWhiteSpace(profile.Username))
+                {
+                    ProfileUsername.Text = $"@{profile.Username}";
+                }
+
+                // Update profile info only when present
+                if (!string.IsNullOrWhiteSpace(profile.ProfileInfo))
+                {
+                    ProfileInfo.Text = profile.ProfileInfo;
+                }
+
+                // Update avatar only when provided (null means 'no change' or removed explicitly)
+                if (profile.Avatar != null)
+                {
+                    UpdateAvatar(ProfileAvatar, profile.Avatar);
+                    UpdateAvatar(ChatHeaderAvatar, profile.Avatar);
+                }
 
                 UpdateChatListAvatar(profile.Id, profile.Avatar);
                 CalculateChatStatistics(profile.Id);
