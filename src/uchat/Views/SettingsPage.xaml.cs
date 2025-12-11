@@ -234,6 +234,9 @@ namespace uchat.Views
             DeleteAccountButton.Content = "Deleting...";
             DeleteAccountButton.IsEnabled = false;
 
+            // Mark disconnect as intentional to prevent connection lost notification
+            _network.MarkIntentionalDisconnect();
+
             try
             {
                 var response = await _network.DeleteAccountAsync();

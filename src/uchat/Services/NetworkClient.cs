@@ -41,6 +41,7 @@ namespace uchat.Services
         private bool _autoReconnectEnabled = false;
         private CancellationTokenSource? _reconnectCts;
         private readonly object _reconnectLock = new object();
+        private bool _isIntentionalDisconnect = false;
 
         public bool IsConnected => _client != null && _client.Connected;
         public bool IsReconnecting => _isReconnecting;
@@ -49,6 +50,15 @@ namespace uchat.Services
         public event Action? ConnectionLost;
         public event Action? Reconnecting;
         public event Action? Reconnected;
+
+        /// <summary>
+        /// Marks the next disconnect as intentional to prevent connection lost notification.
+        /// Use this before operations that will cause disconnection (e.g., account deletion).
+        /// </summary>
+        public void MarkIntentionalDisconnect()
+        {
+            _isIntentionalDisconnect = true;
+        }
 
         public async Task<bool> ConnectAsync(string ip, int port, string? username = null, string? password = null)
         {
@@ -75,6 +85,9 @@ namespace uchat.Services
                 _stream = _client.GetStream();
                 _reader = new StreamReader(_stream, Encoding.UTF8);
                 _writer = new StreamWriter(_stream, Encoding.UTF8) { AutoFlush = true };
+
+                // Reset intentional disconnect flag on successful connection
+                _isIntentionalDisconnect = false;
 
                 return true;
             }
@@ -199,6 +212,13 @@ namespace uchat.Services
             _reader = null;
             _stream = null;
             _client = null;
+
+            // Don't notify about connection loss if it was intentional (e.g., account deletion)
+            if (_isIntentionalDisconnect)
+            {
+                _isIntentionalDisconnect = false;
+                return;
+            }
 
             // Notify about connection loss
             if (Application.Current?.Dispatcher != null)
@@ -750,6 +770,9 @@ namespace uchat.Services
         {
             try
             {
+                // Mark as intentional disconnect to prevent connection lost notification
+                _isIntentionalDisconnect = true;
+
                 // Disable auto-reconnect when manually disconnecting
                 _autoReconnectEnabled = false;
                 CancelReconnection();
